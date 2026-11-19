@@ -1,7 +1,10 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import snapshot from '../../../.upstream-sync/snapshot.json'
 
 const currentYear = new Date().getFullYear()
+const upstreamCommit = snapshot.upstreamCommit
+const upstreamShortCommit = upstreamCommit.slice(0, 7)
 
 export function DocsFooter() {
   return (
@@ -89,10 +92,10 @@ export function DocsFooter() {
             </a>
           </p>
           <a
-            href="https://github.com/stablyai/orca/tree/main/docs/site"
+            href={`https://github.com/stablyai/orca/tree/${upstreamCommit}/docs/site`}
             className="rounded-sm text-xs underline decoration-border underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
-            Docs source: docs/site in stablyai/orca
+            源文档 stablyai/orca@{upstreamShortCommit}
           </a>
         </div>
       </div>

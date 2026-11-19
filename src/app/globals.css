@@ -186,3 +186,8 @@
     border-color: var(--sidebar-border);
   }
 }
+
+/* Hide the upstream marketing block (logo, tagline, links) in the docs footer. */
+footer > div > div.mb-12.flex.flex-col {
+  display: none;
+}
