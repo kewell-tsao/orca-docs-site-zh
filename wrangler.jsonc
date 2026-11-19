@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "orca-docs-zh",
+  "name": "orca-docs-site-zh",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-11-19",
   "compatibility_flags": [
@@ -16,7 +16,7 @@
   "services": [
     {
       "binding": "WORKER_SELF_REFERENCE",
-      "service": "orca-docs-zh"
+      "service": "orca-docs-site-zh"
     }
   ]
 }
