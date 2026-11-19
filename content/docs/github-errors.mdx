@@ -1,0 +1,169 @@
+---
+title: 故障排查 GitHub 错误
+description: 诊断 Orca PR 检查、任务和源代码控制中的速率限制、认证失败和其他 GitHub CLI 错误。
+---
+
+Orca 通过您机器上的 **GitHub CLI (`gh`)**（或远程 Orca 主机）与 GitHub 通信。当 PR 状态、检查、问题或任务无法刷新时，原因几乎总是 GitHub 认证、权限或 API 速率限制 —— 不是损坏的 PR 面板本身。
+
+本页涵盖您最常看到的错误以及如何修复它们。
+
+## 快速分类
+
+| 您看到的                                                                     | 可能原因                                                | 首先尝试                                                                                               |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| "GitHub 正在限制请求" / "超出速率限制 (core)" 或 "(graphql)" | 您用户的 GitHub REST (core) 或 GraphQL 配额已耗尽 | 等待重置；停止额外的 `gh` / 代理 / Orca 使用；检查 [设置 → Git → GitHub API 预算](/docs/settings) |
+| "GitHub 认证不可用" / `gh auth` 提示                       | `gh` 未登录、令牌过期，或错误的 `GITHUB_TOKEN`    | `gh auth status`，然后 `gh auth login`                                                                           |
+| "GitHub 不允许访问" / HTTP 403（非速率限制）                        | 缺少作用域或无法访问仓库                     | 使用 `repo`（以及需要的 org SSO）重新认证；确认您可以在浏览器中打开 PR                             |
+| "仓库不可用" / HTTP 404                                           | 错误的远程、无访问权限的私有仓库或已重命名的仓库  | 检查 `git remote -v` 和浏览器访问                                                                         |
+| "GitHub 不可达" / 超时                                               | 网络、代理、VPN 或 GitHub  outage                       | 检查 [githubstatus.com](https://www.githubstatus.com/)；关闭 VPN 重试                                           |
+| "GitHub CLI 不可用"                                                      | `gh` 从 Orca 使用的 PATH 中缺失                            | 安装 `gh` 并重启 Orca                                                                                    |
+
+## 速率限制（最常见）
+
+GitHub 为每个 **已认证用户** 提供共享的每小时预算。该账户上的 **每个工具都共享它**：Orca、终端中的 `gh`、调用 `gh` 的 Claude/Codex/Grok 代理、CI 脚本、浏览器扩展和其他应用。
+
+### Orca 关心的桶
+
+| 桶          | 覆盖内容                                                                                                            | 典型限制（已认证） |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| **REST (core)** | `gh api` REST 端点：分支的 PR 查找、检查运行、PR 文件、问题评论、标签                             | 5,000 / 小时                  |
+| **GraphQL**     | `gh pr view` / `list` / `checks` / `merge` / `edit`、`gh issue view` / `close` / `reopen` / `edit`、项目/任务查询 | 5,000 点 / 小时           |
+| **搜索**      | 搜索驱动的列表                                                                                                       | 30 / 分钟                   |
+
+当主桶耗尽时，REST 调用以 HTTP **403** 和 `API rate limit exceeded` 失败，GraphQL 调用以 `API rate limit already exceeded` 失败。Orca 将两者分类为速率限制，在可以时保持最后已知的 PR 状态，并在短窗口内 **停止生成更多 `gh` 调用**，因此单次限制不会变成失败风暴。
+
+### 为什么设置可能看起来"正常"而 PR 面板被阻塞
+
+**设置 → Git → GitHub API 预算** 读取 GitHub 特殊的 `rate_limit` 端点。该探测 **免于** 速率限制计算，有时仍报告剩余配额而同一用户的真实 REST 调用已返回 `remaining: 0`。
+
+当它们不一致时，按此顺序信任：
+
+1. **PR / 检查面板上的错误**（实时请求失败）
+2. 真实 CLI 检查（如下）
+3. 设置预算数字（有用，但仅限探测）
+
+也不要混淆 **GitHub API 预算** 与账户下的 **Claude / Codex / Grok 使用量** —— 那些是 AI 提供商限制，不是 GitHub 的 REST 配额。
+
+### 从终端确认速率限制
+
+```bash
+# 探测（不消耗配额；可能看起来比实际健康）
+gh api rate_limit --jq '.resources | {core, graphql, search}'
+
+# 真实 REST 调用 —— PR 刷新、检查运行、PR 文件和评论依赖此
+gh api user -i 2>&1 | head -40
+
+# 真实 GraphQL 调用 —— PR 详情、PR 列表、合并和问题关闭/重新打开依赖此
+gh api graphql -f query='{ viewer { login } }'
+```
+
+如果 `gh api user` 返回 **403** 并带有 `API rate limit exceeded` 和 `X-Ratelimit-Remaining: 0`，该账户在 `X-Ratelimit-Reset`（Unix epoch 秒）之前被阻止 REST。如果 GraphQL 调用以 `API rate limit already exceeded` 失败，GraphQL 桶是那个耗尽的。
+
+### 什么通常会烧光配额
+
+- 很多 Orca 窗口或 electron-dev 构建同时打开（每个可能刷新 PR / 任务）
+- 代理自动化 `gh`（分配 PR/问题、轮询检查、批量 GraphQL）
+- 繁重的任务 / 多仓库扇出同时也刷新 PR 面板
+- 使用同一 GitHub 用户令牌的其他应用
+
+### 该做什么
+
+1. **等待** 错误中或 `X-Ratelimit-Reset` 显示的每小时重置。
+2. **减少并发 GitHub 客户端** —— 退出额外的 Orca 实例并暂停批量 `gh` 自动化。
+3. 在限制时避免敲击 PR 面板上的刷新；Orca 已在退避。
+4. 优先在脚本中批量 GraphQL；不要跨个人账户上的大集合一个 PR 一个 PR 地循环 REST。
+5. 重置后，如果 PR 刷新仍失败，重新检查认证（下一节）。
+
+## 认证问题
+
+Orca 继承那台主机上 `gh` 使用的任何东西。
+
+### 检查状态
+
+```bash
+gh auth status -h github.com
+gh api user --jq '{login, id}'
+```
+
+健康输出：已登录、令牌有效，`gh api user` 返回您的登录。
+
+### 常见陷阱
+
+**Shell 配置中的 `GITHUB_TOKEN` / `GH_TOKEN`**<br />
+如果这些被导出（例如 `~/.bash_profile` 或 `~/.zshrc` 中的 `export GITHUB_TOKEN=$(gh auth token)`），`gh` 优先使用它们而不是 keyring。过时或错误的 env 令牌会产生令人困惑的认证或速率限制行为。取消设置它们并重新登录：
+
+```bash
+unset GITHUB_TOKEN GH_TOKEN
+gh auth logout -h github.com
+gh auth login -h github.com
+```
+
+**过期或被撤销的令牌**<br />
+`gh auth status` 可能显示令牌无效。运行 `gh auth login`（或 `gh auth refresh`）并重启 Orca 以便它获取新凭据。
+
+**Org SAML SSO**<br />
+私有 org 仓库可能需要令牌的 SSO 授权。从 GitHub 令牌设置打开 org 的 SSO 授权链接，然后重试。
+
+**远程 / SSH 工作树**<br />
+GitHub 认证 **每个主机**。在您的笔记本上登录不会在远程机器上登录 `gh`。SSH 进入主机并在那里运行 `gh auth login`，或使用 Orca 的远程服务器 GitHub 预算视图查看该环境。
+
+## 权限和仓库错误
+
+| 症状                                        | 含义                                                     |
+| ---------------------------------------------- | ----------------------------------------------------------- |
+| HTTP 403 无"速率限制"                  | 令牌缺少作用域或您不允许查看资源 |
+| HTTP 404 / "无法解析为仓库" | 仓库缺失、已重命名或对此令牌不可见           |
+| "集成无法访问资源"       | 应用/令牌类型无法执行该操作                    |
+
+修复：
+
+- 确认 PR/仓库在浏览器中打开时，您登录的用户与 `gh api user` 相同
+- 使用包含 `repo`（以及如果您使用这些功能则 `read:org` / `project`）的经典作用域重新认证
+- 对于 GitHub Enterprise，确保 `gh` 已认证到该主机名（`gh auth login --hostname …`）
+
+## 网络和 GitHub  outage
+
+关于超时、"无法解析主机"或"GitHub 不可达"的消息是连接问题：
+
+- 检查 [GitHub 状态](https://www.githubstatus.com/)
+- 尝试不用 VPN / 公司代理
+- 在远程主机上，确认出站 HTTPS 到 `api.github.com` 工作
+
+## GitHub CLI 缺失
+
+如果 Orca 报告 GitHub CLI 不可用：
+
+1. 安装 [`gh`](https://cli.github.com/)
+2. 确认 `which gh` 在正常终端中工作
+3. 完全退出并重新打开 Orca（以便 PATH 匹配）
+4. 在 Windows 上，为 Orca 启动的相同环境安装（WSL vs 原生）
+
+## GitHub 失败时 Orca 如何表现
+
+- **速率限制 / outage**：PR 和检查面板优先显示 **最后已知状态** 加上简短横幅，而非清空 UI。
+- **硬认证 / 权限失败**：您会得到清晰的空状态或横幅文案告诉您修复登录或访问。
+- **断路器**：在主速率限制 403 之后，Orca 短暂拒绝该桶（`core`、`search` 或 `graphql`）的新 `gh` 生成，因此应用保持响应且不会挖更深的洞。
+
+## 在 Orca 中检查 GitHub API 预算
+
+打开 **[设置 → Git](/docs/settings)** 找到 **GitHub API 预算**：
+
+- 来自 GitHub 探测的 **REST / 搜索 / GraphQL** 剩余计数
+- 等待限制退出后刷新
+- 在远程 Orca 服务器上，使用远程高级预算视图查看 **服务器拥有的** `gh` 身份（本地设置仅显示桌面客户端）
+
+## 仍卡住？
+
+1. 在与 Orca 使用的相同机器/用户的终端中用 `gh pr view` 或 `gh api user` 复现一次。
+2. 收集日志：**帮助 → 打开日志**。
+3. 用分类的错误文本（而非机密）、`gh auth status` 打码的输出以及终端 `gh` 是否以相同方式失败提交 issue。
+
+- [GitHub Issues](https://github.com/stablyai/orca/issues)
+- [Discord](https://discord.gg/fzjDKHxv8Q)
+
+## 相关
+
+- [托管评审、问题 & Actions](/docs/review/github) —— 依赖 GitHub 的 PR 和检查功能
+- [设置参考](/docs/settings) —— 集成和 Git 面板
+- [使用量 & 速率限制追踪](/docs/agents/usage-tracking) —— AI 提供商限制（Claude/Codex），不是 GitHub API
+- [故障排查 & FAQ](/docs/troubleshooting) —— 通用 Orca 问题

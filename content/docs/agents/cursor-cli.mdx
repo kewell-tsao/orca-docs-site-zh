@@ -1,0 +1,19 @@
+---
+title: 在 Orca 中使用 Cursor CLI
+---
+
+Cursor CLI 是 Cursor 的命令行代理。Orca 以一等支持的方式运行它 — 从下拉框启动、完整的 OSC 状态检测，以及退出时的重启标签。
+
+## 初始化
+
+1. 按照 [Cursor 的文档](https://cursor.com/cli) 安装 Cursor CLI。
+2. 登录一次。
+3. Orca 会自动检测 `PATH` 上的 CLI。
+
+## 启动
+
+从下拉框选择 **Cursor**。Orca 在该工作树的范围内启动 CLI。Cursor 的 TUI 会发出 Orca 识别代理状态小圆点所需的状态事件。
+
+## 模型选择
+
+模型选择由 Cursor 自己的设置驱动。Orca 不会覆盖它 — 在 CLI 内部配置即可。

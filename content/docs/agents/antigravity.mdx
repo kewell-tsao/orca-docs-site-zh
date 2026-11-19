@@ -1,0 +1,101 @@
+---
+title: Antigravity CLI 初始化
+description: 安装、查找并启动 Google 的 agy CLI，包括自定义安装路径、WSL 和远程主机。
+---
+
+Orca 会启动 Google 的 **Antigravity CLI**，其命令为 `agy`。仅安装 Antigravity 桌面应用并不会在你的机器上生成该命令，而且单独的 `gemini` 命令在 Orca 中是另一个不同的代理。要保存并在多个 `agy` 登录之间切换，请参见 [Antigravity 账户](/docs/agents/antigravity-accounts)。
+
+## 先检查 CLI
+
+按照 [Google 的当前说明](https://antigravity.google/docs/cli-overview) 安装 CLI，然后打开新终端以让它获取更新后的 `PATH`。
+
+在 Windows（PowerShell）上：
+
+```powershell
+Get-Command agy -All | Select-Object CommandType, Source, Definition
+agy --version
+```
+
+在 macOS、Linux 或 WSL 发行版内部：
+
+```sh
+command -v agy
+agy --version
+```
+
+PowerShell 别名或函数不是 Orca 可以启动的可执行文件；请使用实际 CLI 可执行文件的路径。
+
+在项目目录中运行 `agy`，完成 Google 登录，然后发送一个小提示。能找到二进制文件或用 `agy models` 列出模型并不足以证明账户能够生成回复。
+
+## 在 Orca 中查找它
+
+打开 **设置 → 代理** 并点击 **刷新**。这会重新搜索已安装的代理；它不会安装 CLI 或为你登录。
+
+如果 `agy` 安装在 Orca 不搜索的位置，请展开 **Antigravity** 行，在 **命令** 字段中输入可执行文件的完整路径：
+
+```text
+/opt/agent-tools/agy
+```
+
+在 Windows 上，不含空格的路径不需要引号（`C:\Tools\agy.exe`）。包含空格的路径需要用引号。PowerShell（Orca 在 Windows 上默认使用的终端 shell）还需要在带引号的路径前加上 `&` 调用运算符；Command Prompt 不需要：
+
+```text
+& "C:\Agent Tools\agy.exe"
+```
+
+**命令** 字段中不要包含启动标志。该字段会在你按 Enter 或离开时保存，**重置** 会恢复为 `agy`。一旦该路径在主机上存在对应可执行文件，Orca 就会将 Antigravity 列为已安装：它会出现在新标签菜单和新工作空间代理选择器中，并且可以成为你的默认代理。Orca 找不到的路径会让 Antigravity 保持未安装状态。
+
+## WSL 与远程主机
+
+在运行工作空间的那台机器上安装并登录 `agy`：WSL 发行版、[SSH 主机](/docs/ssh) 或 [远程 Orca 服务器](/docs/remote-servers)。你笔记本电脑上能用的 CLI 不代表在那里也可用。
+
+在 Windows 上，**命令** 值由 Windows 和 WSL 工作空间共享。Windows 路径不指向 Linux 可执行文件，因此 WSL 工作空间不会通过它找到 `agy`，而能在自己 `PATH` 上找到 `agy` 的 WSL 工作空间仍然会启动 Windows 路径。如果你两者都运行，请将 Windows 安装添加到 `PATH` 中，而不是设置 **命令**。对于 SSH 主机或远程 Orca 服务器，请在编辑 **命令** 前先在设置主机菜单中选择该主机；该值会存储并在该主机上检查。
+
+## WSL 中的 API 密钥认证
+
+Google 登录是认证 `agy` 的常规方式；API 密钥不是必需的。如果你有意改用 Gemini API 密钥，则 `agy` 在运行它的机器上需要两样东西：
+
+1. `GEMINI_API_KEY` 环境变量。
+2. 在 `~/.gemini/antigravity-cli/settings.json` 中选定 API 密钥 provider。将此合并到现有 JSON 中并保留你的其他设置：
+
+   ```json
+   {
+     "modelProvider": "gemini"
+   }
+   ```
+
+   如果没有这个设置，`agy` 即使密钥存在也可能仍然要求 Google 登录。
+
+在 WSL 中，两者都属于**发行版内部的 Linux 用户**。Windows 环境变量不会自动变成 Linux 环境变量，更改 Windows 变量也不会更新已经在运行的 Orca 实例或终端。
+
+最简单的设置方式是在发行版的 shell 启动文件（例如 `~/.bashrc`）中导出密钥，然后在该工作空间中打开新的 Orca 终端。若要转发你保存在 Windows 环境变量中的密钥，请在 PowerShell 中运行以下命令；系统变量使用 `'Machine'` 替代 `'User'`。它会保留你其他的 `WSLENV` 条目：
+
+```powershell
+$env:GEMINI_API_KEY = [Environment]::GetEnvironmentVariable('GEMINI_API_KEY', 'User')
+$entries = @($env:WSLENV -split ':' | Where-Object { $_ -and ($_ -split '/')[0] -ne 'GEMINI_API_KEY' })
+$env:WSLENV = ($entries + 'GEMINI_API_KEY/u') -join ':'
+```
+
+这些赋值仅影响此 PowerShell 进程及其启动的程序，因此请退出 Orca 并从此 PowerShell 窗口启动，才能让密钥到达 WSL。切勿将密钥放入 **命令** 或 **参数** 字段。
+
+在发行版内部，检查密钥是否到达（不要打印出来），然后请求一个简短回复：
+
+```sh
+if [ -n "${GEMINI_API_KEY:-}" ]; then echo 'API key present'; else echo 'API key missing'; fi
+agy --print 'Reply exactly AGY_AUTH_OK. Do not use tools.' --output-format json --print-timeout 30s
+```
+
+密钥存在只能证明它被转发了；成功的回复才能证明 `agy` 能认证并生成内容。
+
+## 故障排查
+
+| 症状                                                                 | 下一步检查                                                                                                                               |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Antigravity 桌面应用能打开，但 Orca 不列出该代理                      | 确认 `agy --version` 正常运行；Orca 需要 CLI 可执行文件。                                                                                |
+| `agy` 在新终端中可用但 Orca 不列出它                                  | 在 **设置 → 代理** 中点击 **刷新**，或在 **命令** 中输入可执行文件的完整路径。                                                          |
+| 含空格的自定义路径找不到                                              | 给路径加引号（PowerShell 前加 `&`），指向可执行文件而非 shell 别名，**命令** 中不要包含标志。                                           |
+| Windows 工作空间中可用，WSL 中缺失                                    | 在发行版内部安装 `agy`，并参见上面关于 **命令** 中 Windows 路径的说明。                                                                  |
+| 请求返回 401 或 `UNAUTHENTICATED`                                     | 在 Orca 外同一主机上运行 `agy` 完成 Google 登录，或按上方说明设置 API 密钥认证。                                                         |
+| 模型名称被拒绝                                                        | 在主机上运行 `agy models` 并选择它列出的模型。                                                                                          |
+
+报告初始化问题时，请包含 Orca 版本、运行工作空间的主机、`agy --version` 和错误文本。先移除账户标识符、密钥和私有路径。

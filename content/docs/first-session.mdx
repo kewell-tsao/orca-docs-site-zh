@@ -1,0 +1,52 @@
+---
+title: 你的第一个 3-agent 会话
+description: 从空应用到三个 agent 并行运行，不到五分钟完成。
+---
+
+import { Callout } from '@/components/docs/prose'
+
+这是本指南中最重要的一页。读完后你将拥有三个 agent，针对同一任务的三种不同方案并行运行，并成功交付一个 PR。
+
+## 1. 添加仓库
+
+点击侧边栏的 **Add Repo**，让 Orca 指向一个本地检出目录。Orca 读取仓库的 git 状态，将你的默认分支设为它的 **base ref**——每个新 worktree 都从这个 ref 分支出来。
+
+之后可以在仓库设置中修改 base ref。
+
+## 2. 创建 worktree
+
+点击仓库名称旁边的 **+**。输入任务名（比如 "fix-login-race"——留空的话 Orca 会以海洋生物命名）。
+
+启动器会打开，预先选中你的 **默认 agent**（可在 [设置 → Agents](/docs/settings) 下配置），或者如果你更想冷启动则打开一个空终端。固定的 worktree 在侧边栏会高亮显示，让你真正在用的那些始终可见。
+
+选择一个 **start-from** ref。大多数时候就是你的 base ref（`origin/main`），但你也可以从任意分支或提交开始。
+
+Orca 在其托管目录下创建一个真正的 git worktree，检出分支并打开它。
+
+## 3. 选择 agent
+
+在新 worktree 中，一个带有 **agent 下拉框** 的终端会打开。选择 Claude Code、Codex、Cursor CLI 或任何 [支持的 agent](/docs/agents/supported)。Orca 会用正确的工作目录启动 agent 的 CLI，并转发你的订阅凭证。
+
+## 4. 让三个 agent 在同一任务上竞速
+
+现在重复步骤 2–3 两次。你现在有三个 worktree：
+
+- `fix-login-race` → Claude Code
+- `fix-login-race-2` → Codex
+- `fix-login-race-3` → Cursor CLI
+
+把同样的提示词粘贴到每个里面。三个分支。三个 diff。相同提示词。让它们跑起来。
+
+## 5. 观察三个 agent
+
+每个 worktree 保持自己的面板布局，所以切换 worktree 会切换整个视图。观察侧边栏的 [状态指示器](/docs/model/agents-sessions#state-indicators)，查看哪个 agent 正在工作、已完成或在等你，然后从侧边栏或用 `Cmd-J`（macOS）/`Ctrl-Shift-J`（Windows / Linux）跳过去。在 worktree 内，把标签拖到面板边缘即可实现分屏——见 [标签、面板与分屏布局](/docs/model/tabs-panes-splits)。
+
+## 6. 选出胜者，评审 diff，交付
+
+等 agent 们跑完，打开每个 worktree 的 diff 视图。使用 [Annotate AI Diff](/docs/review/annotate-ai-diff) 添加行内评论，发送给最接近目标的那个 agent。
+
+直接在 Orca 内提交并推送——见 [从 Orca 提交与推送](/docs/review/commit-push)。另外两个 worktree 可以一键删除；它们的分支也会一并移除。
+
+<Callout title="就是这样">
+  这个流程——add → worktree → agent → watch → diff → ship——就是 Orca 的全部。本指南中其他每一页都是对其中某一步的深入展开。
+</Callout>

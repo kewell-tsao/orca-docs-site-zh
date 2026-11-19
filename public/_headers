@@ -1,0 +1,14 @@
+/_next/static/*
+  Cache-Control: public,max-age=31536000,immutable
+
+/docs/*.mp4
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=86400
+
+/docs/*.gif
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=86400
+
+/docs/posters/*
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=86400
+
+/docs/videos/*
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=86400

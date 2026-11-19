@@ -1,0 +1,83 @@
+---
+title: 支持的代理
+description: Orca 开箱即用附带的所有代理。
+---
+
+import { Callout } from '@/components/docs/prose'
+
+Orca 可以与**任何 CLI 代理**协同工作 — 代理下拉框只是在终端中启动一个进程。以下代理在内置代理选择器中已预配置，支持一键启动/初始化；支持深度 hooks、状态、用量追踪和账户切换的位置已标注说明。
+
+<Callout title="权限安全">
+  以下默认配置会为新启动的代理传入各代理的权限绕过标志。工作树是一个
+  隔离的检出副本，而非安全沙箱：代理仍然可以访问其进程可用的文件和网络资源。请在
+  **设置 → 代理 → 代理权限** 中选择 **手动**，除非你有意信任该代理和任务。
+</Callout>
+
+## 默认权限
+
+对于新启动，Orca 会预填每个受支持 CLI 的权限绕过标志 — Claude 使用 `--dangerously-skip-permissions`，Codex 使用 `--dangerously-bypass-approvals-and-sandbox`，Gemini / Cursor / Crush / Kimi / Muse / Rovo Dev / Hermes / GitHub Copilot / Command Code 使用 `--yolo`，ZCode 使用 `--mode yolo`，以及其他暴露类似标志的代理对应的等价标志。这些标志允许代理在不确认每个 shell 命令的情况下执行；使用前请先审视信任边界。
+
+当你想要在 **Yolo** 和 **手动** 启动之间切换所有未自定义的代理时，使用 **设置 → 代理 → 代理权限**。如果你已经覆盖了某个特定代理的启动参数或环境变量，Orca 会保持该代理不变，以免全局切换清除你的自定义命令。
+
+若仅对单个代理恢复提示，请在设置中编辑该代理的默认参数或环境变量。Orca 会将非空的自定义值视为显式覆盖，并让该代理不再参与未来的权限模式迁移。
+
+如果某个代理的 CLI 安装在 `PATH` 之外，请在 **设置 → 代理** 中展开该行，然后在 **命令** 字段中输入可执行文件的完整路径。一旦该路径在运行工作空间的主机上存在，Orca 就会将该代理列为已安装。
+
+| 代理               | 备注                                                                                                                         | 文档                                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Claude Code        | 深度集成：用量、热切换、hooks                                                                                                | [Anthropic](https://docs.anthropic.com/claude/docs/claude-code)                                   |
+| Claude Agent Teams | 默认禁用 — 在设置 → 代理下启用，通过 `orca claude-teams` 启动，每个队友使用原生面板                                         | [Anthropic](https://code.claude.com/docs/agent-teams)                                             |
+| Codex              | 深度集成：用量、热切换                                                                                                       | [OpenAI](https://github.com/openai/codex)                                                         |
+| Grok               | 自动初始化                                                                                                                   | [xAI](https://x.ai/cli)                                                                           |
+| GitHub Copilot CLI | 自动初始化                                                                                                                   | [GitHub](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli)                   |
+| OpenCode           | 自动初始化、状态                                                                                                             | [OpenCode](https://opencode.ai/docs/cli/)                                                         |
+| Pi                 | 自动初始化、hooks、状态                                                                                                      | [Pi](https://pi.dev)                                                                              |
+| OMP                | 自动初始化、hooks、状态                                                                                                      | [OMP](https://omp.sh)                                                                             |
+| Prime Agent        | 自动初始化、hooks、状态、会话历史                                                                                            | [Prime Intellect](https://github.com/PrimeIntellect-ai/prime-agent)                               |
+| Gemini             | 自动初始化                                                                                                                   | [Google](https://github.com/google-gemini/gemini-cli)                                             |
+| Antigravity        | [初始化](/docs/agents/antigravity)、hooks、状态、用量、[账户切换](/docs/agents/antigravity-accounts)                          | [Google](https://antigravity.google/docs/cli-overview)                                            |
+| Ante               | 自动初始化、状态                                                                                                             | [Ante](https://github.com/AntigmaLabs/ante-preview)                                               |
+| Aider              | 自动初始化                                                                                                                   | [Aider](https://aider.chat/docs/)                                                                 |
+| Goose              | 自动初始化                                                                                                                   | [Block](https://goose-docs.ai/docs/quickstart/)                                                   |
+| Amp                | 自动初始化                                                                                                                   | [Amp](https://ampcode.com/manual#install)                                                         |
+| Kilocode           | 自动初始化                                                                                                                   | [Kilo](https://kilo.ai/docs/cli)                                                                  |
+| Kiro               | 自动初始化                                                                                                                   | [Kiro](https://kiro.dev/docs/cli/)                                                                |
+| Charm Crush        | 自动初始化                                                                                                                   | [Charm](https://github.com/charmbracelet/crush)                                                   |
+| Auggie             | 自动初始化                                                                                                                   | [Augment](https://docs.augmentcode.com/cli/overview)                                              |
+| Autohand           | 自动初始化                                                                                                                   | [Autohand](https://github.com/autohandai/code-cli)                                                |
+| Cline              | 自动初始化                                                                                                                   | [Cline](https://docs.cline.bot/cline-cli/overview)                                                |
+| CodeBuddy          | `npm install -g @tencent-ai/codebuddy-code`                                                                                | [CodeBuddy](https://www.codebuddy.ai/cli)                                                         |
+| Codebuff           | 自动初始化                                                                                                                   | [Codebuff](https://www.codebuff.com/docs/help/quick-start)                                        |
+| Freebuff           | 自动初始化                                                                                                                   | [Freebuff](https://freebuff.com/cli)                                                              |
+| Command Code       | 自动初始化、状态                                                                                                             | [Command Code](https://commandcode.ai/docs/quickstart)                                            |
+| Muse               | macOS/Linux；在启动时信任工作空间                                                                                             | [Meta](https://dev.meta.ai/docs/muse-code)                                                        |
+| DeepSeek Harness   | 需要 `@deepseek-ai/dsh` 和社区版 `@deepseek-harness-tui/dsh-tui`；hooks、状态、问题、恢复                                     | [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI#quick-start)                                     |
+| ZCode              | 深度集成；需要一个附带 TUI 的 `zcode` CLI（见下方说明）                                                                      | [Z.ai](https://zcode.z.ai/en/docs)                                                                |
+| Continue           | 自动初始化                                                                                                                   | [Continue](https://docs.continue.dev/cli/quickstart)                                              |
+| Cursor CLI         | 深度集成                                                                                                                     | [Cursor](https://cursor.com/cli)                                                                  |
+| Devin              | 自动初始化                                                                                                                   | [Devin](https://devin.ai/cli)                                                                     |
+| Droid (Factory)    | 自动初始化、hooks、状态                                                                                                      | [Factory](https://docs.factory.ai/cli/getting-started/quickstart)                                 |
+| Kimi               | 自动初始化                                                                                                                   | [Moonshot](https://www.kimi.com/code/docs/en/kimi-code-cli/getting-started.html)                  |
+| Mistral Vibe       | 自动初始化                                                                                                                   | [Mistral](https://github.com/mistralai/mistral-vibe)                                              |
+| MiniMax            | 自动初始化、用量追踪、速率限制追踪                                                                                            | [MiniMax](https://www.minimax.chat)                                                               |
+| Qwen Code          | 通过已安装的 `qwen` 可执行文件自动初始化                                                                                     | [Qwen](https://github.com/QwenLM/qwen-code)                                                       |
+| Rovo Dev           | 自动初始化                                                                                                                   | [Atlassian](https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/) |
+| Hermes             | 自动初始化                                                                                                                   | [Nous](https://hermes-agent.nousresearch.com/docs/)                                               |
+| OpenClaw           | 自动初始化                                                                                                                   | [OpenClaw](https://github.com/openclaw/openclaw)                                                  |
+| Trae               | 通过 `traecli`（TRAE CN CLI）自动初始化                                                                                     | [Trae](https://www.trae.ai/)                                                                      |
+
+## ZCode：选择一个附带 TUI 的 CLI
+
+Orca 通过 `zcode` 终端 CLI 来驱动 ZCode，因此 `PATH` 上的 `zcode` 必须是包含 ZCode TUI 的构建版本。
+
+ZCode **桌面应用** 仅附带代理运行时，不包含 TUI。如果将 `zcode` 指向
+`/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs` 可以启动，但随后在打开会话时会失败并报：
+
+```
+Cannot find package '@zcode/tui' imported from .../zcode.cjs
+```
+
+在这种状态下 Orca 的 hooks 仍能正确安装，因此症状看起来像是集成出了问题，其实只是 CLI 无法渲染会话。使用带有 TUI 的 `zcode` — 从
+[`zai-org/ZCode`](https://github.com/zai-org/ZCode) 构建 CLI（`apps/zcode-cli`），或安装一个将运行时与 TUI 打包在一起的发行版。
+
+用 `zcode --version` 检查你当前的版本，并在报告 harness 问题前确认 `zcode` 能在 Orca 之外正常打开会话。

@@ -1,0 +1,153 @@
+---
+title: 电脑操控
+description: 通过无障碍树、截图和安全的 UI 操作从代理驱动本地桌面应用。
+---
+
+import { Callout } from '@/components/docs/prose'
+
+`orca computer` CLI 让代理可以检查和控制原生桌面应用 —— 列出正在运行的应用、读取无障碍树、点击控件、设置值、输入文本、滚动以及截图。当任务需要操作系统或第三方应用而非终端或内置浏览器时使用它。
+
+<Callout title="Beta">
+  电脑操控为每个平台附带原生辅助工具，并需要无障碍（在 macOS 上还需要屏幕
+  录制）权限。命令范围足够稳定，技能可以在此基础上构建，但标志名称可能仍会变化。
+</Callout>
+
+## 首次初始化
+
+检查运行时和权限：
+
+```
+orca status --json
+orca computer permissions --json
+orca computer capabilities --json
+```
+
+如果 `permissions` 报告缺少任何内容，请在系统设置中为 **Orca Computer Use** 授予无障碍（在 macOS 上还有屏幕录制）权限，然后重新运行 `permissions --json` 确认。
+
+## 快照 → 操作 → 快照
+
+每个交互都遵循相同的循环：读取应用的当前状态，对特定元素执行操作，然后重新读取状态以验证结果。
+
+```
+orca computer list-apps --json
+orca computer get-app-state --app com.spotify.client --json
+orca computer click --app com.spotify.client --element-index 42 --json
+```
+
+元素索引限定在最新的 `get-app-state` 结果范围内，可能是 **稀疏的**。在 `--json` 输出中，从 `result.snapshot.treeText` 读取树。不要从 `elementCount` 发明索引。在导航、焦点更改、滚动或任何应用重新渲染之后，刷新状态再重用索引。
+
+操作结果仅返回自该窗口上次状态以来更改的无障碍树行（`~` 更改、`+` 添加、`-` 移除），由 `snapshot.treeDiff` 标记；传递 `--full-tree` 获取完整树。要在大窗口中找到一个控件，`get-app-state --query <text>` 仅打印匹配的元素及其祖先，`--max-elements <n>` 限制输出。大于快照限制的窗口在截断树的位置显示 `... N more not shown (snapshot limit)`；`get-app-state --element-index <n>` 仅读取该元素的子树，因此传递被截断子节点的父级以查看它们。
+
+## 等待应用
+
+与其在操作之间休眠，不如等待应用接下来应该显示什么。`wait` 一旦条件满足就返回，打印匹配的元素或窗口，并在 `--timeout` 毫秒后（默认 10000，最多 120000）失败并返回 `wait_timeout`：
+
+```bash
+orca computer wait --app com.apple.TextEdit --text "Saved" --json
+orca computer wait --app com.apple.TextEdit --enabled "Continue" --json
+orca computer wait --app com.apple.TextEdit --window-title "Save As" --json
+```
+
+`--text` 以与 `get-app-state --query` 相同的方式匹配元素行。`--enabled` 在包含文本的元素存在且没有一个被禁用时成立。`--window-title` 检查 `list-windows` 报告的窗口标题（在 Windows 上仅主窗口的）。`wait` 仅读取应用，并在应用或窗口尚不存在时继续检查。`--enabled` 需要运行时的提供商标记禁用元素（`capabilities` 中的 `supports.observation.disabledState`）。
+
+## 多窗口应用
+
+```bash
+orca computer list-windows --app com.microsoft.edgemac --json
+orca computer get-app-state --app com.microsoft.edgemac --window-id <id> --json
+orca computer click --app com.microsoft.edgemac --window-id <id> --element-index 12 --json
+```
+
+当列出的 id 不是 `none` 时，优先使用稳定的 `--window-id`；否则使用 `--window-index`。
+
+## 选择应用
+
+优先使用 `list-apps` 返回的 bundle ID：
+
+```
+orca computer get-app-state --app com.microsoft.edgemac --json
+```
+
+在无歧义时应用名称也适用（`--app Spotify`）。仅在 bundle ID 和名称都冲突时使用 `--app pid:<number>`。
+
+在 macOS 上，没有 Dock 图标的应用（如菜单栏应用）在显示窗口时会被列出，标记为 `accessory: true`。
+
+## 启动应用
+
+`list-apps` 仅显示正在运行的应用。要在不中断您当前工作的情况下启动已关闭的应用，使用 `launch-app`：
+
+```
+orca computer launch-app TextEdit --json
+```
+
+它请求 macOS 和 Windows 在后台启动应用，并保持已运行的应用不动。有些应用仍会自行前置，因此结果的 `delivery` 表示应用最终是否在前台。`--activate` 则将其前置。Linux 尚不支持。
+
+## 可用操作
+
+```
+orca computer click --app <app> --element-index <i> --json
+orca computer set-value --app <app> --element-index <i> --value "text" --json
+orca computer type-text --app <app> --text "text" --json
+orca computer type-text --app <app> --element-index <i> --text "text" --json
+orca computer press-key --app <app> --key Return --json
+orca computer hotkey --app <app> --key CmdOrCtrl+A --json
+orca computer paste-text --app <app> --text "text" --json
+orca computer scroll --app <app> --element-index <i> --direction down --json
+orca computer drag --app <app> --from-x 100 --from-y 100 --to-x 300 --to-y 300 --json
+orca computer perform-secondary-action --app <app> --element-index <i> --action <name> --json
+```
+
+优先使用语义操作（`click`、`set-value`、`perform-secondary-action`）而非原始的 `type-text` 或 `press-key` —— 它们直接目标无障碍元素，能在键盘输入无法应对的焦点变化中存活。
+
+`hotkey` 和 `press-key` 拒绝退出或关闭应用、登出、锁定屏幕、强制退出或结束会话的快捷键，例如 macOS 上的 `Cmd+Q`、`Shift+Cmd+Q`、`Ctrl+Cmd+Q` 和 `Option+Cmd+Esc`，Windows 上的 `Alt+F4` 和 `Win+L`，Linux 上的 `Ctrl+Q`、`Alt+F4`、`Super+L` 和 `Ctrl+Alt+Delete`。错误代码为 `system_shortcut_blocked`。传递 `--allow-system-shortcut` 仍然发送它。
+
+`type-text --element-index <i>` 将文本插入该字段的光标位置，而不聚焦它或前置其窗口。它适用于 macOS、Linux 和 Windows。在 macOS 上，以及通过其 UI 自动化值写入的 Windows 字段，不报告光标的字段会在末尾获取文本。应用仍可能自行前置窗口，因此请检查 `action.delivery`。
+
+在 macOS 上，操作在后台运行：目标应用不会被前置，您的前台应用和主窗口保持原位，指针不会移动，因此您可以在代理驱动另一个窗口时继续工作。每个操作结果报告 `action.delivery`（`background` 或 `foreground`）。仅当应用忽略后台输入时（例如 Chromium 或 Electron 应用中的拖动，或游戏）传递 `--restore-window`；它将应用前置并使用真实指针和键盘，指针在您没有移动它的情况下会回到原位。无法获取焦点的窗口（如某些启动窗口）在没有遮挡该点的内容时仍会获取点击，您的前台应用随后恢复，除非点击打开了什么。附带的技能告诉代理不要自行添加它；它们先询问您，错误消息也这么说。弹出菜单和 web `<select>` 控件使用 `set-value` 而非点击来设置。在 Linux 上，通过无障碍操作的元素点击、`set-value`、`type-text --element-index` 和次要操作在后台运行；需要真实指针或聚焦窗口的操作被拒绝，除非您传递 `--restore-window`。在 Wayland 上即使传递了它也会被拒绝，因为合成输入永远无法到达原生窗口。在 Windows 上，当控件支持时，元素点击、`set-value`（包括滑块）、滚动和次要操作（`Invoke`、`Toggle`、`Select`、`Expand`、`Collapse`、`ScrollToVisible`）通过 UI Automation 执行，不移动指针或发送按键。`type-text --element-index` 在那里也适用于文本框。有些应用在以这种方式驱动时仍会自行前置窗口（WPF 应用对大多数这些操作都会），因此当目标窗口被前置时 `action.delivery` 报告 `foreground`。需要真实鼠标的操作（如坐标点击、右键点击和拖动）被拒绝，除非传递 `--restore-window`；然后仅目标窗口被前置，指针回到原位。键盘输入（不带索引的 `type-text`、`press-key`、`hotkey`、`paste-text`）在窗口不前置时同样被拒绝。
+
+当无障碍定位失败时，谨慎回退到坐标：
+
+```bash
+orca computer click --app com.apple.Safari --x 120 --y 340 --json
+orca computer drag --app <app> --from-element-index 3 --to-element-index 9 --json
+```
+
+## 敏感输入
+
+通过 stdin 传递机密，以免它们进入 shell 历史：
+
+```
+printf '%s' "$TEXT" | orca computer set-value \
+  --app com.apple.Safari --element-index 7 --value-stdin --json
+```
+
+`--text-stdin` 对 `type-text` 和 `paste-text` 同样适用。
+
+在 Linux 和 Windows 上，操作负载也会在辅助工具运行时短暂地通过本地操作文件。Stdin 将机密排除在 shell 历史之外，但不会向每个本地观察者隐藏它们；除非任务明确需要，否则避免发送机密。
+
+## 截图
+
+`get-app-state` 返回无障碍树，默认还返回截图。使用 `--json` 时，图像字节写入磁盘，路径在 `screenshot.path` 中返回，而不是嵌入在响应中。当不需要像素时传递 `--no-screenshot`（更快、更小的负载）。要保留像素但发送更少字节，`--screenshot-scale 1` 将图像限制为每个窗口点一个像素（Retina 捕获则为两个），`--screenshot-max-edge <px>` 限制其较长边，`--screenshot-format jpeg` 将其编码为 JPEG；`screenshot.format` 和 `screenshot.scale` 说明返回了什么。在 macOS 上，最小化或隐藏的窗口没有像素，因此截图失败而无障碍树仍会返回；另一个 Space 上的窗口会被捕获。
+
+在 Wayland 上，截图在 KDE Plasma、Hyprland 和 Sway 上工作。在 Hyprland 和 Sway 上它们需要 `grim`、GdkPixbuf 以及 `hyprctl` 或 `swaymsg`；Orca 通过进程 ID 和标题找到目标窗口并捕获其区域，因此重叠的窗口可能出现在图像中。
+
+在 KDE Plasma 上，Orca 通过 `xdg-desktop-portal`（使用 `xdg-desktop-portal-kde`）询问 KWin 窗口位置、截取桌面截图，然后裁剪到窗口。门户将该截图保存在您的 Pictures 文件夹中；Orca 读取它并删除。首次截图会让桌面询问应用是否可以截取屏幕。回答提示，然后再次运行 `get-app-state`。如果提示在 `get-app-state` 放弃等待后被回答，门户可能会在 Pictures 中留下那张截图。如果您拒绝它，截图会一直失败，直到您在桌面的权限设置中再次允许。另一个窗口覆盖的 KDE 窗口返回截图错误而非另一个窗口的图像。
+
+GNOME 不告诉应用窗口在哪里，因此它返回截图错误。在任何 Wayland 桌面上，当窗口被最小化或在另一个工作空间、匹配多个窗口或其大小与其无障碍边界不同时，`get-app-state` 返回带有截图错误的无障碍树。
+
+## 从代理使用它
+
+附带的 `orca-computer-use` 技能将相同的命令范围与安全指南打包。将其安装到代理的技能目录中：
+
+```
+npx skills add https://github.com/stablyai/orca --skill orca-computer-use
+```
+
+关于技能如何被识别，请参见 [技能注册表 & MCP](/docs/cli/skills)。
+
+## 后续步骤
+
+- [Orca CLI 概览](/docs/cli/overview) —— CLI 的其余功能（工作树、终端、浏览器）。
+- [技能注册表 & MCP](/docs/cli/skills) —— 将此 CLI 分发给代理。
+
+该技能之前名为 `computer-use`。使用该名称的现有 Orca CLI 请求仍受支持。对代理调用使用 `$orca-computer-use`。Orca 通过其技能更新器迁移经过验证的未编辑安装，并保留编辑过的副本。旧的共享文件夹可能仍作为现有代理配置文件的转发链接存在。

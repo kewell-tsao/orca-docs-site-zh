@@ -1,0 +1,65 @@
+---
+title: 托管审阅、issues & Actions
+---
+
+托管代码审阅是工作树的一等组成部分。Orca 将工作树链接到它们的 pull request 或 merge request，内联展示审阅状态，并让你无需离开应用就能处理 issues。
+
+## 连接 provider
+
+从 [设置 → 集成](/docs/settings) 连接你的仓库使用的 provider。GitHub 对 Actions 和 issues 的支持最深入；GitLab merge request 和 issues 使用相同的工作树审阅流程。
+
+Bitbucket Cloud 在应用内从同一个面板连接 — **连接** 时使用 **邮箱 & API token** 或 **Access token**。Orca 会在保存前验证凭据，并可以从源代码控制面板创建 pull request。Bitbucket Cloud 没有草稿 PR，因此编辑器隐藏了 Draft 开关。`ORCA_BITBUCKET_*` 环境变量仍然优先于已保存的凭据。Azure DevOps 和 Gitea 的 pull request 出现在工作树侧边栏和 Checks 面板中，与 GitHub、GitLab 和 Bitbucket 并列 — 工作树创建流程会在推送前检查它们是否有远程冲突。
+
+## 审阅
+
+- 一旦工作树已推送，就可以从源代码控制面板打开托管审阅 — 创建前确认基础分支、标题、描述和草稿状态。
+- 源代码控制面板在你创建或打开托管审阅时，会让当前分支在分支上下文行中保持可见，因此创建 PR 的操作永远不会替换分支标签。
+- 关联的审阅会在侧边栏中显示状态，让你一眼看出分支是仍开放、已合并还是已关闭。
+- 当 Orca 有关联 PR / MR 的 URL 时，分支上下文行会显示一个紧凑的 **在浏览器中打开审阅页面** 链接 — 一键跳转到 GitHub、GitLab、Bitbucket、Azure DevOps 或 Gitea 上的审阅，而不打开内部 PR 视图。
+- 对于 GitHub pull request，使用侧边栏中的 PR 操作菜单复制审阅链接、关闭审阅，或在确认状态变更后重新打开。
+- GitHub checks、审阅和评论在 PR 标签中内联打开；GitLab merge request 和 issues 在同一个审阅界面中打开。
+- 对于 GitLab 流水线，**Checks** 侧边面板包含桥接和子流水线作业（不仅仅是顶层作业）。展开作业会在可用时加载该作业的 trace（日志）— 与 GitHub check 详情打开的位置相同 — 这样失败的作业就不是一个死胡同的"无内联详情"占位。
+- 在 Checks 面板中，你可以在审阅线程中的任何评论下回复，不仅仅是根评论。
+- GitHub PR 对话评论和内联审阅线程评论有一个反应选择器，与 GitHub 的八种反应匹配（👍 👎 😄 😕 ❤️ 🎉 🚀 👀）。已存在的标签是可切换的。GitLab 评论保持不变。
+- 分组的 PR 评论区块按最新优先排序，这样新回复会把其线程推到顶部。时间线标签保持最旧优先。
+- 当 GitHub pull request 有失败的 checks 时，使用 PR 视图中的 **修复失败的 checks** 将失败的 check 名称和链接交给代理。
+
+### 自动合并
+
+对于开放的 GitHub PR，PR 视图的合并按钮提供 **启用自动合并**，这样 GitHub 会在满足其要求（checks、必需的审阅）后自动合并分支。合并方法跟随仓库的默认设置，可以是 **Squash and merge**、**创建合并提交** 或 **Rebase and merge** — 仓库不允许的方法不会显示。使用同一控件中的 **禁用自动合并** 取消待处理的自动合并。当基础分支使用 GitHub 的合并队列时，同一控件显示 **就绪时合并**，并将 PR 添加到队列中。自动合并控件对 GitHub 报告为草稿、已关闭、有冲突或不稳定的 PR 隐藏，对不允许自动合并的仓库也隐藏 — 在这些情况下你只会看到手动合并操作。
+
+### 堆叠 pull request
+
+当你创建 GitHub pull request，其选定的基础分支已有打开的 PR 时，编辑器会提供 **将此 PR 堆叠在 #N 之上**。勾选后会创建一个 GitHub Stack（或扩展父 PR 现有的 stack），并将提交标签改为 **在 stack 中创建 PR**（或 **在 stack 中创建草稿 PR** / **推送并在 stack 中创建 PR**）。一个小预览会显示父 PR 和新分支。此选项仅适用于 GitHub，且仅当执行主机支持堆叠创建时才出现。GitLab merge request 和 Bitbucket pull request 保持单 PR 创建。
+
+当 GitHub 将一个 pull request 注册为 **stack** 的一部分时，PR 侧边栏会显示一个可折叠的 **Stack #N** 地图：你在 stack 中的位置、stack 大小和 stack 基础分支。展开可以看到有序的各层及其状态（开放、草稿、checks 待处理/失败、需要审阅、冲突、已合并、已关闭）。点击一层在 Orca 中打开该 PR。
+
+感知 stack 的合并会将单 PR 合并标签替换为 **通过 #N 合并 · M 个 PR**（当仓库使用合并队列时为 **通过 #N 排队 · M 个 PR**）。该操作覆盖当前 PR 及其下方 stack 中的每个 PR。确认列表中包含所有相关编号。原子式 stack 合并失败即整体失败 — 如果任何一层无法合并，则都不合并。没有 GitHub 注册 stack 元数据的普通依赖 PR 链保持正常单 PR 合并流程。GitLab merge request 不受影响。
+
+## Issues
+
+issue 抽屉让你可以在 Orca 内浏览、过滤和编辑 GitHub 与 GitLab issues。从 GitHub issue 或 PR 创建工作树会打开交互式工作空间编辑器（不是静默的后台创建），这样 issue 命令自动化、SSH 目标和文件夹工作空间与其他创建路径的行为一致。编辑器会预填任务名称并关联 issue，这样审阅始终附着在任务上。
+
+对于 GitHub issues，详情对话框有一个 **Activity** 区块，将评论与时间线事件交错展示 — 分配、提及、交叉引用、状态变更和项目列移动 — 这样你无需离开 Orca 就能看到完整历史。
+
+使用工作空间侧边栏中关联 issue 的菜单复制 issue 链接，而无需打开抽屉。
+
+对于 GitLab 仓库，抽屉列出选定项目中的开放 issues，并可以缩小到分配给你的 issues。
+
+## Actions
+
+失败的 GitHub Actions checks 会在工作树上显示为红色标签。点击进去内联查看失败作业日志。
+
+## 任务
+
+Orca 在 **任务** 侧边栏条目下展示完整的 GitHub Projects 视图 — 跨仓库浏览项目卡片、按来源仓库过滤、查看草稿 pull request 状态，并从任何卡片创建工作树。
+
+## 故障排查
+
+如果 PR 状态、checks 或任务刷新失败 — 速率限制、`gh` 认证、权限或网络 — 请参见 **[GitHub 错误故障排查](/docs/github-errors)**。
+
+## 后续步骤
+
+- [在 Orca 中提交与推送](/docs/review/commit-push) — 暂存变更、推送分支，然后创建托管审阅。
+- [Linear items 抽屉](/docs/review/linear) — 当任务来源在 git provider 之外时使用 Linear。
+- [GitHub 错误故障排查](/docs/github-errors) — 速率限制、认证和 `gh` 失败。

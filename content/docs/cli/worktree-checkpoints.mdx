@@ -1,0 +1,51 @@
+---
+title: Worktree 检查点
+---
+
+每个 Orca 工作树都带有一个轻量的自由文本 **注释** 字段，在 UI 中可见 —— 工作树当前在做什么的状态快照。代理可以从 CLI 更新它，这是我们推荐的让人类协作者保持知情的模式，而不强制聊天。
+
+## 该模式
+
+```
+orca worktree set --worktree active --comment "reproduced auth failure; testing credential-chain fix" --json
+```
+
+## 卡片状态（可选）
+
+除了自由文本注释之外，在阶段改变时设置工作空间卡片状态：
+
+```bash
+orca worktree set --worktree active \
+  --comment "fix implemented; running integration tests" \
+  --workspace-status in-progress \
+  --json
+```
+
+状态：`todo`、`in-progress`、`in-review`、`completed`（或您的工作空间使用的自定义 id）。
+
+## 好的检查点时机
+
+- 完成了有意义的实现切片。
+- 确认或反驳了一个假设。
+- 完成了代码评审。
+- 遇到了阻塞（等待外部输入、上游 bug、缺少访问权限）。
+- 正从调查过渡到修复，或从修复过渡到验证。
+
+## 格式
+
+第一行是动作：刚刚发生了什么、在哪里，以及状态或下一步。
+
+```
+orca worktree set --worktree active --comment "added debounce to SearchBar onChange (src/components/SearchBar.tsx); ready for review
+goal: reduce redundant API calls per #298" --json
+```
+
+## 写入前先读取
+
+如果注释可能有用户编写的上下文，先读取它以免覆盖目标或约束：
+
+```
+orca worktree current --json
+```
+
+保留仍然有效的内容，删除过时的内容，并融入您的更新。

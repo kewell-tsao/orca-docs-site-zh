@@ -1,0 +1,330 @@
+---
+title: 远程 Orca 服务器
+description: 让 Orca 在另一台电脑上运行并从您的笔记本连接。
+---
+
+import { Callout, ImagePlaceholder } from '@/components/docs/prose'
+
+远程 Orca 服务器让一台电脑做工作，另一台电脑提供 UI。服务器保留项目、工作树、终端、标签、提供商账户和代理会话。您的笔记本连接到那个正在运行的 Orca 实例。
+
+最简单的初始化是两台电脑上的 Orca 桌面应用，通过 [Tailscale](https://tailscale.com/) 连接。对于此路径，您不需要运行 `orca serve`。
+
+<Callout title="Beta">
+  远程 Orca 服务器是 beta。让服务器和客户端在您控制的私有网络路径上，
+  例如同一个 Tailscale tailnet 或 LAN。
+</Callout>
+
+## 什么在哪里运行
+
+```text
+客户端电脑 · Orca 客户端
+  显示 UI 并发送您的输入
+                 │
+                 │ 私有网络路由
+                 ▼
+服务器电脑 · Orca 服务器
+  存储仓库和工作树
+  运行终端和代理
+```
+
+在 **服务器电脑** 上安装并认证 Codex、Claude Code、OpenCode、`git` 和任何提供商 CLI。您笔记本上的登录不会自动带到服务器。
+
+在无头的 `orca serve` 主机上，从服务器 shell 注册管理的 Claude/Codex 账户（远程客户端禁用了 **添加账户**）：
+
+```bash
+orca account add --agent claude
+orca account add --agent codex
+orca account list
+```
+
+无需设置 UI 安装或刷新代理技能：
+
+```bash
+orca skills install --skill orca-cli --skill orchestration
+orca skills update --all
+```
+
+## 推荐：桌面应用 + Tailscale
+
+您需要：
+
+- 两台电脑上都已安装和更新 Orca
+- 两台电脑上都已安装 Tailscale
+- 两台电脑都登录到同一个 tailnet
+- 服务器电脑已唤醒、在线并运行 Orca
+
+Tailscale 给服务器一个通常以 `100.` 开头的私有地址。Orca 在其连接地址选择器中将该地址放在首位。
+
+### 1. 在服务器上创建访问链接
+
+在应该保持会话运行的电脑上：
+
+1. 打开 Orca 桌面应用。
+1. 打开 **设置 → 远程 Orca 服务器**。
+1. 在 **将此应用通告为服务器** 下，点击 **新链接**。
+1. 对于 **连接地址**，选择 Tailscale 地址。它通常看起来像 `100.x.y.z`。
+1. 点击 **生成访问链接**。
+1. 复制 **配对另一个 Orca 客户端** 下方的链接。
+
+如果 Tailscale 地址缺失，确认 Tailscale 已连接并点击 **连接地址** 旁边的刷新按钮。
+
+<Callout title="保持访问链接私密">
+  配对 URL 授予对此 Orca 运行时的访问权限。将其视为密码，仅发送给您打算
+  配对的客户端。
+</Callout>
+
+### 2. 在您的笔记本上添加服务器
+
+在您要用作客户端的电脑上：
+
+1. 打开 **设置 → 远程 Orca 服务器**。
+1. 点击 **添加服务器**。
+1. 输入可识别的名称，例如 `远程服务器`。
+1. 粘贴来自服务器的访问链接。
+1. 点击 **添加服务器**。
+1. 如果保存的服务器显示 **已断开**，点击 **连接**。
+
+<ImagePlaceholder
+  src="/docs/remote-server-add-client.png"
+  caption="在客户端：命名服务器、粘贴其访问链接并添加。配对代码在此示例中已打码。"
+/>
+
+<ImagePlaceholder
+  src="/docs/remote-server-share-desktop.png"
+  caption="通过私有网络将 Orca 桌面运行时与另一个客户端共享。"
+/>
+
+添加服务器会保存它，不强制将每个新项目都放在上面。仅当您希望服务器路由的项目、终端、提供商检查和浏览器或移动交接默认使用该服务器时，才打开 **高级 → 新项目的默认主机**。
+
+## 使用远程服务器
+
+一旦服务器显示 **已连接**，选择它或其项目之一正常使用 Orca。终端、代理进程、文件、工作树和会话状态位于服务器电脑上。
+
+当多个已配对的客户端共享该服务器时，侧边栏筛选可以提供 **隐藏其他客户端的工作空间**，因此此设备仅列出它创建的工作空间。参见 [工作树 → 侧边栏布局](/docs/model/worktrees#sidebar-layout)。
+
+这意味着：
+
+- 代理在客户端笔记本休眠或断连时继续运行；
+- 服务器需要那些代理使用的仓库、工具和凭据；
+- 服务器必须保持唤醒并连接到 tailnet；
+- 重新连接客户端或重新打开 Orca 会将您带到服务器拥有的工作空间、标签和可见面板状态，而不重复已配对标签；
+- 您在服务器上删除的项目会从每个已配对客户端的侧边栏消失（没有永久幽灵行）。
+
+## 访问和安全
+
+Orca 为每个已配对客户端创建单独的、可撤销的令牌。服务器在 **共享服务器访问** 下列出这些。
+
+- 点击授权旁边的垃圾桶按钮撤销它。使用该授权的活动客户端立即断连。
+- 生成另一个链接会替换之前的 **未使用** 链接。已经配对的客户端保持自己的授权，直到您撤销它们。
+- 让 Tailscale ACL 或授权尽可能窄。
+- 不要将 Orca 端口直接转发到公共互联网。优先使用 Tailscale、WireGuard、受信任的 LAN、SSH 转发或经过认证的隧道。
+- 不要为另一台电脑选择 `127.0.0.1`。该地址仅在服务器自身上工作。
+
+## 替代方案：`orca serve`
+
+当主机应在没有桌面窗口的情况下运行时使用 `orca serve` —— 例如无头 Linux 服务器或服务管理的 VM。对于可以保持登录的 MacBook 或桌面，上面的应用内初始化更简单。
+
+在服务器上安装 Orca 及其附带的 CLI，然后运行：
+
+<Callout title="在 Linux 上，用 orca-ide serve 启动">
+  Linux CLI 命名为 `orca-ide`，因为 GNOME Orca 的屏幕阅读器已占用
+  `/usr/bin/orca`。打包的 `orca serve` 确实会将裸的 `orca` 写入 `~/.local/bin`，
+  但仅在它启动时，因此那个 shim 永远不可能是启动服务器的命令。当主机是 Linux 时，
+  本页中请将 `orca serve` 理解为 `orca-ide serve`。参见 [安装 →
+  Linux](/docs/install#linux)。
+</Callout>
+
+```bash
+orca serve --pairing-address <server-tailscale-ip-or-hostname>
+# Linux
+orca-ide serve --pairing-address <server-tailscale-ip-or-hostname>
+```
+
+使用 `--bind <literal-ip>` 选择接受运行时连接的接口。对于通过 SSH 隧道或反向代理到达的服务器，本地绑定；当客户端应直接连接时使用 Tailscale 或 LAN IP。`--pairing-address` 仍然仅控制嵌入在配对链接中的地址。`--mobile-pairing` 需要所有接口，因此使用它时不要加 `--bind` 或使用 `--bind 0.0.0.0`。
+
+```bash
+orca-ide serve --bind 127.0.0.1 --pairing-address 127.0.0.1
+```
+
+例如：
+
+```bash
+orca serve --pairing-address 100.64.1.20
+# Linux
+orca-ide serve --pairing-address 100.64.1.20
+```
+
+命令：
+
+- 在不打开桌面窗口的情况下启动 Orca 运行时；
+- 在 macOS 上，保持不在 Dock 和 Cmd-Tab 切换器中，直到您从中打开桌面窗口；
+- 在前台运行，直到您按 `Ctrl-C`；
+- 打印绑定的端点和运行时配对 URL；
+- `--pairing-address` 仅用于客户端应连接的地址。
+
+将打印的配对 URL 粘贴到客户端的 **设置 → 远程 Orca 服务器 → 添加服务器** 中。
+
+`orca serve` 接受来自 localhost、LAN 和 Tailscale 地址的客户端，包括服务器自己网络前缀上的地址（例如同一网络上的全局 IPv6 地址）。它拒绝其他公共互联网地址，除非：
+
+- 您传递了 `--allow-public`；
+- `--pairing-address` 是主机名或公共 IP；
+- 已配对客户端已经从公共地址连接过；或
+- 在添加此检查之前配对的客户端仍然已配对。
+
+启动日志说明应用了哪个规则，并且每个小时记录第一个被拒绝的公共地址。传递 `--refuse-public` 以在每种情况下拒绝公共地址，例如旧配对原本会接受它们的服务器。
+
+当防火墙、隧道或服务定义需要固定端口时添加 `--port 6768`：
+
+```bash
+orca serve --port 6768 --pairing-address 100.64.1.20
+# Linux
+orca-ide serve --port 6768 --pairing-address 100.64.1.20
+```
+
+一次只使用一个主机模式。如果 Orca 桌面应用已经在共享那台电脑，不要为同一初始化启动第二个 `orca serve` 进程。
+
+`orca serve` 默认在 Orca 自己的 Node 服务器 (orcad) 上运行。如果 orcad 无法在此电脑上提供服务，它改用桌面应用的服务器并打印一行说明原因。在打包的 macOS 应用上它使用桌面应用的服务器，因此已配对客户端仍可以更新它，除非您设置了 `ORCA_SERVE_RUNTIME=orcad`（参见 [仅通过 SSH 到达的 Mac](#a-mac-reached-only-over-ssh)）。要始终使用桌面应用的服务器，设置 `ORCA_SERVE_RUNTIME=electron`。
+
+### 在 Linux 上仅安装服务器
+
+每个发布还为 Linux x64 和 arm64 单独发布服务器：orcad、它运行的 Node 运行时以及 `orca-ide` CLI。它不需要桌面包（GTK、X11、Xvfb），因此适合您自己的无头 Linux 服务器、VM 和容器。下载量约 60 MB，而 `.deb` 为 190 MB。下载它、检查它、解压：
+
+```bash
+arch=$(uname -m | sed 's/x86_64/x64/; s/aarch64/arm64/')
+base=https://github.com/stablyai/orca/releases/latest/download
+curl -fsSLO "$base/orca-server-linux-$arch.tar.gz" -O "$base/orca-server-sha256sums.txt"
+sha256sum --check --ignore-missing orca-server-sha256sums.txt
+sudo mkdir -p /opt/orca-server
+sudo tar -xzf "orca-server-linux-$arch.tar.gz" -C /opt/orca-server --strip-components=1
+/opt/orca-server/bin/orca-ide serve --pairing-address <server-tailscale-ip-or-hostname>
+```
+
+要锁定版本，将 `latest/download` 替换为 `download/v<version>`，并将该版本的校验和保留在您的脚本中而不是旁边下载。服务器需要 glibc 2.28 或更高版本（Ubuntu 20.04、Debian 10、RHEL 8 及更高）。
+
+`orca-ide serve` 接受与上面相同的标志，包括服务管理器下的 `--supervise` 和 `--recipe-json`。要更新，停止服务器，将 `/opt/orca-server` 替换为更新的发布，再次启动；已配对客户端无法为您更新它。对于 `orca-ide serve service install`，传递 `--command /opt/orca-server/bin/orca-ide` 或将 `/opt/orca-server/bin` 放在 `PATH` 上。仅服务器安装没有浏览器面板、听写或已配对 Web 客户端，因为那些随桌面应用附带。
+
+### 在 Linux 服务器上限制终端内存
+
+默认情况下，没有任何东西限制终端进程使用的内存量，因此一个失控的作业可能将整个服务器推入内核的内存不足杀手。在 Linux 上，您可以通过在启动 `orca serve` 的环境中（或在其服务单元中）设置这些变量来限制每个终端：
+
+```bash
+export ORCA_TERMINAL_MEMORY_MAX=16G      # 每个终端的内存，256M 或更多
+export ORCA_TERMINAL_MEMORY_SWAP_MAX=0   # 每个终端的 swap；0 表示无 swap
+orca-ide serve --pairing-address 100.64.1.20
+```
+
+- 每个终端已在其自己的 systemd 用户作用域中运行。限制成为该作用域的 `MemoryMax` 和 `MemorySwapMax`。
+- 当终端超过其限制时，内核会杀死其最大的进程。通常那是作业，shell 保持运行。服务器和每个其他终端继续运行。
+- 限制默认关闭，因为 Orca 无法知道对您的工作负载来说什么是合理的限制。
+- 它们需要带有 cgroup v2 和在登出后继续存在的用户管理器的 systemd (`loginctl enable-linger <user>`)。如果主机无法强制限制，Orca 跳过它，在终端主机日志中记录 `terminal-memory-limits`，并不带限制地启动终端。
+- Orca 仅在其终端主机进程启动时读取它们。该进程在 `orca serve` 重启时保持运行，因此终端保留其旧限制直到它也重启，例如服务器重启后。
+- 它们对 macOS 或 Windows 没有效果。
+
+### 在 Linux 服务器上使用 GPU
+
+在 Linux 上，`orca serve` 默认关闭硬件加速，因为大多数无头主机没有 GPU，GPU 进程失败可能阻止服务器启动。浏览器面板随后在软件中渲染。如果主机为 Orca 进程提供了 GPU（例如 `/dev/dri/renderD128` 这样的渲染节点），在启动 `orca serve` 的环境中（或在其服务单元中）设置 `ORCA_SERVE_GPU=1` 以保持硬件加速开启：
+
+```bash
+export ORCA_SERVE_GPU=1
+orca-ide serve --pairing-address 100.64.1.20
+```
+
+这仅阻止 Orca 关闭 GPU。Chromium 仍可能在 Orca 自己没有 GPU 的 Xvfb 上以软件渲染；在浏览器面板中打开 `chrome://gpu` 检查，如果报告软件渲染，将 `DISPLAY` 指向 GPU 支持的 X 服务器。如果您使用 `orca serve service install` 安装了服务器，请自己将变量添加到服务单元。如果服务器停止启动或设置它后浏览器面板崩溃，取消设置它回到软件渲染。
+
+### 机器镜像的副本
+
+机器镜像的副本共享服务器身份：配对密钥、配对设备和安装 id。在一个副本上撤销设备会使它在其他副本上继续工作，桌面应用将所有副本视为一台服务器。在启动 `orca serve` 的环境中为每个实例设置 `ORCA_INSTANCE_ID`（例如 cloud-init 实例 id），或在每个副本上运行 `orca serve reset-identity`。
+
+- 设置了 `ORCA_INSTANCE_ID` 时，Orca 将该值与服务器身份一起记录。如果后续启动看到不同值，Orca 创建新身份并删除该副本上所有已配对设备，因此客户端需要重新配对。
+- Orca 在现有服务器上看到的第一个值仅被记录，因此稍后设置变量保持现有配对。使用在一个实例的重启之间保持不变的值；每次启动更改的值会强制每次新配对。
+- 当未设置 `ORCA_INSTANCE_ID` 时，Orca 从不自行更改身份。
+- 如果 Orca 无法写入新身份（例如磁盘满或只读），它保持提供当前未更改的身份，记录错误并在下次启动时重试。
+- `orca serve reset-identity` 按需执行相同重置。先停止那台机器上的 Orca；命令要求确认，或传递 `--yes`。
+- 每次重置将替换的文件移动到 Orca 数据目录下的新 `orca-identity-backups` 文件夹（保留最近五个）。要撤销不需要的重置，停止 Orca 并将文件从该文件夹复制回数据目录。
+
+### 从无头服务器移动
+
+对于 Orca 移动应用，请求移动作用域的二维码和链接：
+
+```bash
+orca serve --pairing-address 100.64.1.20 --mobile-pairing
+# Linux
+orca-ide serve --pairing-address 100.64.1.20 --mobile-pairing
+```
+
+保持手机在同一个 tailnet 上，打开 Orca 移动，选择 **配对**，然后扫描终端二维码或粘贴打印的链接。
+
+### 不重启服务器进行配对
+
+`orca pair` 向已在此机器上运行的 Orca 请求新配对，因此您不必停止服务或重启 `orca serve`。在服务器上，以 Orca 运行的用户身份运行：
+
+```bash
+orca pair --mobile --address 100.64.1.20   # 用于 Orca 移动的二维码和链接
+orca pair --address 100.64.1.20            # 用于另一个 Orca 的访问链接
+# Linux
+orca-ide pair --mobile --address 100.64.1.20
+```
+
+它对桌面应用、前台 `orca serve` 或 `orca serve service install` 同样适用。只有机器自己的用户可以运行它；已配对客户端和手机无法创建配对。
+
+### 仅通过 SSH 到达的 Mac
+
+在打包的 macOS 应用上，`orca serve` 使用桌面应用的服务器，需要桌面登录：从没人登录的 SSH 会话启动时，它在启动时中止。要为这样的 Mac 提供服务，改为请求 Orca 的 Node 服务器。它没有应用内更新器，因此自己更新应用（例如 `brew upgrade --cask stablyai/orca/orca`）并重启服务器：
+
+```bash
+ORCA_SERVE_RUNTIME=orcad orca serve --pairing-address 100.64.1.20
+```
+
+## 桌面应用还是 `orca serve`？
+
+|               | 服务器上的桌面应用           | `orca serve`                                       |
+| ------------- | ----------------------------------- | -------------------------------------------------- |
+| 最适合      | 旧笔记本、Mac mini 或桌面 | 无头 Linux 盒子、VM 或托管服务       |
+| 初始化         | 设置和按钮                | 终端命令和服务配置         |
+| 服务器窗口 | 打开                                | 无                                               |
+| 访问链接   | **新链接 → 生成访问链接** | 在终端打印                            |
+| 生命周期      | 桌面应用运行时    | 前台进程或服务运行时 |
+
+## 远程 Orca 服务器还是 SSH？
+
+当您笔记本上的 Orca 应拥有运行时并仅使用另一台机器运行选定工作树和终端时，使用 [SSH 工作树](/docs/ssh)。
+
+当另一台机器应拥有完整 Orca 运行时并为桌面、浏览器、移动或自动化任务客户端保留共享会话时，使用远程 Orca 服务器。
+
+完整比较参见 [运行 Orca 的方式](/docs/ways-to-run)。
+
+## 故障排查
+
+### Tailscale 地址未列出
+
+在服务器上，确认 Tailscale 已连接，然后点击 **连接地址** 旁边的刷新按钮。两台电脑都必须登录到同一个 tailnet。Tailscale IPv4 地址通常以 `100.` 开头。
+
+### 服务器已断开
+
+确认服务器电脑已唤醒、Orca 仍在运行，并且 Tailscale 显示两台设备都在线。如果一台设备无法到达另一台，请检查您的 tailnet ACL 或授权。
+
+如果服务器行报告不兼容的协议版本，请在两台电脑上更新 Orca。
+
+### 访问链接与错误的人共享了
+
+在服务器上，打开 **设置 → 远程 Orca 服务器 → 共享服务器访问** 并撤销该授权。为预期的客户端生成新链接。
+
+### 服务器找不到代理 CLI
+
+在服务器电脑上安装并认证该 CLI。远程会话使用服务器的 `PATH`、主目录和凭据 —— 不是客户端的。
+
+### `orca serve` 通告了错误的地址
+
+停止命令并用客户端可以到达的地址重启：
+
+```bash
+orca serve --pairing-address <reachable-tailscale-ip-or-hostname>
+```
+
+不要使用通配地址或 `127.0.0.1` 供远程客户端。
+
+## 后续步骤
+
+- 在 [运行 Orca 的方式](/docs/ways-to-run) 中比较每个运行模式。
+- 当笔记本应拥有 Orca 运行时时，使用 [SSH 工作树](/docs/ssh)。
+- 关于 `orca serve` 标志和自动化任务命令，参见 [Orca CLI 参考](/docs/cli/reference)。

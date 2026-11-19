@@ -1,0 +1,31 @@
+---
+title: 在 Orca 中使用 Claude Code
+---
+
+Claude Code 是 Anthropic 的代理式 CLI。Orca 以一等终端代理的方式运行它，支持账户感知的会话启动、用量追踪以及账户热切换。
+
+## 初始化
+
+1. 安装 Claude Code（`npm i -g @anthropic-ai/claude-code` 或按照 Anthropic 的文档操作）。
+2. 在任意终端中登录一次。
+3. Orca 会自动识别 `~/.claude` — 无需额外配置。
+
+## 启动
+
+在任何工作树中打开终端，从代理下拉框选择 **Claude Code**。Orca 会以工作树作为工作目录启动它，并附加一个状态行 hook，用于发送 Orca 识别状态小圆点所需的 OSC 标题事件。
+
+## 用量与速率限制
+
+Orca 会使用你现有的 Claude Code 登录凭据从 Anthropic 获取 Claude 用量，并在状态栏显示当前用量及速率限制的接近程度。参见 [用量与速率限制追踪](/docs/agents/usage-tracking)。
+
+## 账户热切换
+
+Orca 支持多个 Claude 账户，可以一键在它们之间切换，与 Codex 的流程相同。即使有活跃的 Claude 会话在运行，切换账户也能生效 — Orca 会在背后加一个守卫，避免触发重叠的认证刷新。参见 [热切换 Codex 账户](/docs/agents/codex-hot-swap) — Claude 的流程在结构上完全一致。
+
+## 子代理与团队
+
+后台子代理和 Agent Teams 队友可以在工作树代理列表和 [代理仪表盘](/docs/model/agents-sessions#agent-dashboard) 中显示为主代理下可展开的子行。选中子行时会聚焦到主终端。
+
+## Hooks 与内存
+
+Claude Code 支持按仓库配置 hooks 和内存文件。Orca 在 [代理 hooks 与内存](/docs/agents/hooks-memory) 下提供这些内容的可视化入口。

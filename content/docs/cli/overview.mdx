@@ -1,0 +1,127 @@
+---
+title: Orca CLI 概览
+description: 使用 Orca CLI 从终端编写 Orca 脚本，管理工作树，控制代理终端，自动化内置浏览器，并安装代理技能。
+keywords:
+  - orca cli
+  - Orca CLI
+  - orca command line
+  - Orca skills
+  - npx skills add
+  - agent CLI
+---
+
+import { Callout } from '@/components/docs/prose'
+
+Orca CLI 是用于从任何 shell 编写正在运行的 Orca 编辑器脚本的 `orca` 命令行接口。使用它来创建和检查工作树、驱动代理终端、打开文件和差异、自动化内置浏览器、运行定时自动化任务、共享 HTML/Markdown 制品，以及从脚本或 AI 代理控制 Orca 原生工具。
+
+它随桌面应用附带；在 [设置 → 通用 → Orca CLI](/docs/settings) 下注册。在 Linux 上命令为 `orca-ide`，因为 GNOME Orca 的屏幕阅读器已占用 `/usr/bin/orca` —— 参见 [安装 → Linux](/docs/install#linux)。
+
+代理可以使用以下命令安装匹配的 Orca CLI 技能：
+
+```bash
+npx skills add https://github.com/stablyai/orca --skill orca-cli
+# 无头 / 无设置界面：
+orca skills install --skill orca-cli
+```
+
+关于每个可安装的 Orca 技能，包括 `orca skills install` / `orca skills update`，请参见 [技能注册表 & MCP](/docs/cli/skills)。
+
+## 安装与验证
+
+```
+command -v orca
+orca status --json
+```
+
+## 工作树命令
+
+```
+orca worktree ps --json
+orca worktree create --repo id:<repoId> --name my-task --issue 123 --json
+orca worktree create --repo id:<repoId> --name review-pr-123 --pr 123 --json
+orca worktree current --json
+orca worktree set --worktree active --comment "reproduced bug" --json
+orca worktree set --worktree active --gitlab-issue 42 --gitlab-mr 77 --json
+orca worktree set --worktree active --pr null --json
+orca worktree rm --worktree id:<id> --force --json
+```
+
+关于选择器、初始化标志、父子工作树以及更广泛的命令映射，请参见 [Orca CLI 参考](/docs/cli/reference)。
+
+## 终端命令
+
+```
+orca terminal list --json
+orca terminal read --json
+orca terminal send --text "npm test" --enter --json
+orca terminal wait --for tui-idle --timeout-ms 30000 --json
+orca terminal create --worktree path:/projects/app --command "npm test" --json
+orca terminal split --direction vertical --command "npm run dev" --json
+```
+
+`terminal send` 用于 shell、开发服务器和 REPL。要向另一个代理发送消息，请使用 `orca orchestration send`；要进行可追踪的多代理工作，请使用 [编排](/docs/cli/orchestration)。
+
+## 文件命令
+
+从 shell 中以标签形式在其 Orca 工作树中打开文件和差异。它们打开时不会改变您当前查看的内容；添加 `--focus` 会将焦点带到该文件：
+
+```
+orca file open src/App.tsx
+orca file diff src/App.tsx --staged
+orca file open-changed --mode both
+```
+
+当 shell 的当前目录不在目标工作树内时，使用 `--worktree <selector>`。
+
+## 浏览器配置文件
+
+浏览器配置文件隔离标签会话状态，因此脚本或代理可以使用不同的 cookie、本地存储和登录身份进行测试。CLI 在 `orca tab profile` 下暴露配置文件命令；从 `orca tab profile list --json` 开始，然后根据需要使用 `create`、`set`、`clone` 或 `use-default`。
+
+## 定时自动化任务
+
+使用 `orca automations` 从 shell 创建、检查、运行和删除 Orca 定时任务。当您希望针对仓库或现有工作树运行重复提示时，请先查看 [定时自动化任务](/docs/cli/automations)。
+
+## 制品
+
+通过登录的 Orca 账户（`orca artifacts share|update|list|delete`）将 HTML 或 Markdown 作为公开查看链接共享。发布遵循 **设置 → 制品 → 允许发布公共制品链接**：对于新配置文件默认开启，而在此默认值之前创建的配置文件保留其之前的设置。命令详情：[CLI 参考 → 制品](/docs/cli/reference#artifacts)。
+
+## 浏览器自动化
+
+CLI 还通过快照-交互-再快照循环驱动内置浏览器：
+
+```
+orca goto --url https://example.com --json
+orca snapshot --json     # 返回 @e1、@e3 等引用
+orca click --element @e3 --json
+orca fill --element @e1 --value "user@example.com" --json
+orca screenshot --json
+```
+
+要进行响应式浏览器检查，请将活动标签切换到命名的设备配置文件：
+
+```
+orca set device --name "iPhone 12" --json
+orca screenshot --json
+```
+
+## 移动模拟器
+
+CLI 还可以通过 Orca 的移动模拟器桥控制 iOS Simulator。它的作用域限定在活动工作树，因此代理和脚本可以附加模拟器、使用 `orca emulator list` 列出工作树附加的设备、点击归一化坐标、输入文本、发送手势、旋转设备并在不离开 Orca 的情况下关闭它。
+
+```
+orca emulator list --json
+orca emulator attach "<device-name-or-udid>" --json
+orca emulator tap 0.5 0.7 --json
+orca emulator type "hello" --json
+orca emulator gesture '[{"type":"begin","x":0.5,"y":0.8},{"type":"move","x":0.5,"y":0.4},{"type":"end","x":0.5,"y":0.2}]' --json
+orca emulator rotate landscape_left --json
+orca emulator kill --json
+```
+
+当脚本需要显式目标时，使用 `--worktree <selector>`、`--device <udid-or-name>` 或 `--emulator <id>`。
+
+<Callout>
+  关于完整的命令范围，包括标签、等待、cookie 和框架，请参见 [Orca CLI
+  参考](/docs/cli/reference)，然后安装 Orca CLI 技能（参见 [技能
+  注册表](/docs/cli/skills)）并将您的代理指向它。
+</Callout>

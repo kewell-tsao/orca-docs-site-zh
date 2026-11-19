@@ -1,0 +1,13 @@
+{
+  "title": "代码审阅与发布",
+  "defaultOpen": true,
+  "pages": [
+    "diff-viewer",
+    "annotate-ai-diff",
+    "attribution",
+    "commit-push",
+    "github",
+    "linear",
+    "jira"
+  ]
+}

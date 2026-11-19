@@ -1,0 +1,209 @@
+---
+title: 编排
+description: 通过运行、任务、受监管的 worker、消息和决策门协调代理。
+---
+
+import { Callout } from '@/components/docs/prose'
+
+编排是 Orca 结构化的多代理层：**Run**（命名空间 + 协调者收件箱）、**任务**、**分派**、受监管的 **worker**、消息和决策门。
+
+在需要所有权、完成追踪或 DAG 时使用它。要向另一个代理发送单向消息，使用 `orca orchestration send --to <terminal handle or orca_session_id:<id>> --subject "<topic>" --body "<message>"`；它不需要 Run 或 Task。对于无需监管的完整所有权移交，来自 `orca-cli` 技能的 `worktree create --agent` 或 `agent launch`。
+
+<Callout title="Experimental">
+  在使用这些命令之前，在设置 → 实验性功能下启用编排。CLI 与正在运行的 Orca
+  运行时通信，因此 `orca status --json` 应先成功。
+</Callout>
+
+<Callout title="旧命令已弃用">
+  `orca orchestration run` 和 `run-stop`（以及 `coordinator-start` /
+  `coordinator-stop`）**不执行任何操作**。它们返回指向 `orca skills get
+  orchestration --full` 的恢复文本。使用下方的 Run + worker-start 流程。
+</Callout>
+
+## 输出
+
+每个编排命令默认打印简短视图：下一个命令需要的 ID 和状态，最后是下一步。`--json` 将相同字段打印为一行 JSON（`{"ok":true,"result":{...}}`）。`--full --json` 打印 Orca 返回的完整记录作为格式化 JSON；单独的 `--full` 打印更长的文本收据。失败或未确认的结果以非零值退出，并将 `error: <code>: <message>` 写入 stderr。
+
+## 核心模型
+
+- **Run** —— 持久命名空间和主收件箱。从不调度或放置 worker。
+- **任务** —— 带有规范、依赖和状态的工作项：`pending`、`ready`、`dispatched`、`completed`、`failed` 或 `blocked`。
+- **分派** —— 在终端上对任务的一次尝试；`worker_done` 的生命周期权威。
+- **消息** —— 收件箱邮件（`status`、`dispatch`、`worker_done`、`escalation`、`question`、`heartbeat`，……）。
+- **决策门** —— 协调者拥有的问题，在解决之前阻塞任务。
+
+完成权威来自活动分派上下文。Worker 完成消息应同时包含 `taskId` 和 `dispatchId`。
+
+终端中打印的任务 ID（如 `task_...`）是可点击链接。点击一个会向 Orca 运行时询问任务的当前分派并聚焦分配的终端，包括当任务位于远程或 SSH 运行时时。
+
+## 首选受监管循环
+
+```bash
+orca orchestration run-create --objective "Split checkout QA and summarize blockers"
+orca orchestration task-create --spec "Audit billing settings for mobile layout" --task-title "Billing audit"
+orca orchestration worker-start --task <taskId> --worktree current --agent codex
+# 或新工作树：
+orca orchestration worker-start --task <taskId> --worktree new-child --name billing-audit --agent codex --setup run
+# 可选的每 worker 模型 / 效果（Claude、Codex、Cursor、Antigravity、Grok、Muse、Pi；不能与 --terminal 一起使用）：
+orca orchestration worker-start --task <taskId> --worktree current --agent claude --model <opaque-model-id> --effort high
+```
+
+`--agent` 接受 worker 服务器上启用的任何 Orca 代理 ID，例如 `claude`、`codex`、`cursor`、`antigravity`、`muse`、`opencode` 或 `opencode2`。`--model` 接受 Claude、Codex、Cursor、Antigravity、Grok、Muse 和 Pi 的不透明提供商模型 ID（例如 `--agent muse --model muse-spark-1.3`）；Pi 接受 `provider/id` 选择器并将 `--effort` 映射到其自己的 `--thinking` 级别（off、minimal、low、medium、high、xhigh、max）；OpenCode 仅在现有工作树中接受每次启动的模型，当执行主机验证其 CLI 版本和模型可用性时；OpenCode 效果仍不支持。其他代理从其自己的配置运行模型。`--effort` 需要 `--model` 且仅在该代理/模型支持该级别时适用。两个标志都不能与 `--terminal`（重用现有面板）组合。覆盖仅适用于该启动，并在启动收据中显示为 `model` / `effort`（`--full --json` 显示 `launch.requested` / `launch.effective`）。联邦启动需要通告启动偏好支持的 worker 主机。
+
+启动 worker 后，结束您的轮次。当 worker 报告、提问或停止时，Orca 唤醒协调者。在聊天中，每条消息整体到达；对其采取行动。当唤醒命名了 `check` 命令（终端，或太大无法整体交付的聊天消息）时，运行它并处理它打印的每条消息：
+
+```bash
+orca orchestration check --run <runId>
+```
+
+Worker 完成（从 worker 面板；包含注入的 ID）：
+
+```bash
+orca orchestration send \
+  --type worker_done \
+  --subject "Completed mobile audit" \
+  --body "Fixed footer overlap; no follow-ups." \
+  --task-id <taskId> \
+  --dispatch-id <dispatchId> \
+  --outcome succeeded \
+  --files-modified "src/app/settings/Billing.tsx"
+```
+
+`worker_done` 需要 `--outcome succeeded|failed`。
+
+检查 / 恢复：
+
+```bash
+orca orchestration worker-show --dispatch <dispatchId>
+orca orchestration worker-read --dispatch <dispatchId> --limit 50
+orca orchestration worker-stop --dispatch <dispatchId>
+# 在接受的 worker_done 之后：将相同的终端重用于后续分派，或释放它
+#（归档可检查的输出，然后仅关闭协调者拥有的代理终端）：
+orca orchestration worker-release --dispatch <dispatchId>
+# 在完成后保持 worker 打开（或使用 worker-start --keep-open 启动）：
+orca orchestration worker-keep-open --dispatch <dispatchId>
+# 重试放置是显式的 —— --retry-of 不继承 --on/worktree：
+orca orchestration worker-start --task <taskId> --retry-of <dispatchId> --worktree current --agent codex
+```
+
+当 worker 在权限提示处停止时，升级会命名提示。只有人类可以允许它，因此继续其他工作直到其结束消息到达；如果它阻塞了任务，用原因拒绝它，worker 会以另一种方式继续：
+
+```bash
+orca orchestration deny --dispatch <dispatchId> --prompt <approvalId> --reason "<what to do instead>"
+```
+
+如果用户在 Orca 的编排设置中打开 **让协调者批准 worker 权限提示**，协调者也可以用原因允许它。用户仍然会看到允许和拒绝，第一个回答获胜。运行 worker 的机器应用其自己的设置：
+
+```bash
+orca orchestration approve --dispatch <dispatchId> --prompt <approvalId> --reason "<reason>"
+```
+
+不要仅仅为了重读输出而让已完成的 worker 终端保持打开 —— 在 `worker-release` 之后使用 `worker-read`。当释放返回 `release_pending` 或 `release_unknown` 时，不要用宽泛的 `terminal close` 替代；按照收据的恢复操作处理。
+
+## 联邦 worker（可选）
+
+```bash
+orca orchestration worker-start \
+  --task <taskId> \
+  --on windows \
+  --worktree new-top-level \
+  --repo <exact_remote_repo_selector> \
+  --name remote-worker \
+  --agent codex \
+  --setup run
+orca orchestration send --to dispatch:<dispatchId> --subject "Follow-up" --body "…"
+```
+
+改用 `--worktree new-child` 将服务器的工作树嵌套在您侧边栏的工作空间下。太旧无法跨机器嵌套的服务器仍会启动 worker，位于顶层，并在收据中带有 `warning`。
+
+后续命令通过分派 ID 路由；不要重复 `--on`。
+
+## 低级分派（自定义拓扑）
+
+```bash
+orca worktree create --name billing-audit --agent codex --json
+orca terminal wait --terminal <workerHandle> --for tui-idle --timeout-ms 60000 --json
+orca orchestration dispatch --task <taskId> --to <workerHandle> --inject
+```
+
+## 消息说明
+
+- 默认的 `check` 返回绑定 Run 最旧的未读邮件作为一次投递（FIFO）并标记为已处理。`--ack <deliveryId>` 从不标记它的旧 Orca 确认投递；单独使用时不读新邮件，加上 `--wait` 则等待并接收下一次投递。
+- `--peek` / `--all` 不消耗邮件也不返回 `deliveryId`，因此它们不会自行清空邮箱。`--all` 和 Run 的 `--peek` 最多显示 100 行。要清空，重复简单的 `check` 直到它打印 `No messages.`（在 `--json` 中直到 `messages` 为空）；在要求 `--ack <deliveryId>` 的旧 Orca 上，先确认每次投递，否则 `check` 会再次返回它。
+- 组地址：`@all`、`@idle`、`@claude`、`@codex`、`@opencode`、`@gemini`、`@droid`、`@grok`、`@cursor`、`@worktree:<id>` —— 从不用于 `worker_done`。
+- 除 `@worktree:<id>` 外的每个组意味着发送者自己 Run 的活动分派，投递到其分派邮箱（或嵌套协调者的子 Run 邮箱）。不在 Run 中的发送者会被拒绝；`--run` 必须匹配受众且从不授予成员身份。
+- Run 组排除其拥有者协调者。引发阻塞的 worker 发送到 `run:<id>`。`@worktree:<id>` 包括该工作空间中的协调者。
+- 引用 PowerShell 组地址：`--to "@all"`。
+
+```bash
+orca orchestration send --to @all --subject "Heads up" --body "Pausing dispatches for a review."
+orca orchestration send --to @idle --subject "Anyone free?"
+orca orchestration send --to @codex --subject "Codex workers in this Run only"
+```
+
+等待激活时，CLI 每 15 秒向 stderr 发出小的 JSON 心跳行。Stdout 保持为最终命令结果。
+
+## Worker 契约
+
+已分派的 worker 接收一个前言，告诉他们如何与协调者通信：
+
+- 即使失败也只发送一次 `worker_done`，带有 `--outcome`。
+- 包含简短的 `--body` 摘要：做了什么、发现了什么、还有什么需要做。
+- 同时包含任务和分派 ID，以便过时的重试无法完成错误的分派。
+- 使用 `orca orchestration ask` 提问而非本地 TUI 提示，然后结束轮次。Orca 通过邮件唤醒您提供答案：在聊天中整体到达，除非对一条聊天消息来说太大；每当唤醒命名了 `check` 命令时运行它。
+
+```bash
+orca orchestration ask \
+  --question "Should I update the shared component or only this page?" \
+  --options "shared,page-only"
+```
+
+`ask` 记录问题并立即返回 `pending: true`。添加 `--wait`（或 `--resume <message_id>`）阻塞直到答案；使用 `--json` 时，用 `jq -r .result.answer` 读取。
+
+## 决策门
+
+使用 `ask` 进行 worker 到协调者的问题。当协调者创建了任务 DAG 并希望在记录决策之前阻塞任务时，使用显式门：
+
+```bash
+orca orchestration gate-create \
+  --task <taskId> \
+  --question "Merge the shared button change into the task branch?" \
+  --options '["yes","no"]'
+
+orca orchestration gate-resolve --id <gateId> --resolution "yes"
+```
+
+## 恢复
+
+```bash
+orca orchestration dispatch-show --task <taskId>
+orca orchestration dispatch-show --task <taskId> --preamble
+orca orchestration task-list
+orca orchestration task-update --id <taskId> --status blocked --result '{"reason":"waiting on credentials"}'
+```
+
+仅在有意放弃编排状态时重置：
+
+```bash
+orca orchestration reset --tasks
+orca orchestration reset --messages
+orca orchestration reset --all
+```
+
+`reset` 影响运行时全局编排状态。在另一个协调者活动时不要运行它，除非那是预期的清理。
+
+## 选择正确的命令
+
+使用 `orca orchestration send` 向另一个代理发送单向消息。对于普通邮件，聊天会收到完整消息及其发送者头（对一条聊天消息太大的消息会得到运行 `orca orchestration check` 的提示），Orca 从不将您的话输入到代理终端的输入框（它通过 `check` 读取邮件），收据表示邮件已存储，而非已读取。向已完成 worker 的 `dispatch:<id>` 发送消息可以改为启动后续任务，其正文作为任务发送给 worker；收据说明是哪个。对 shell、开发服务器和 REPL 使用 `orca terminal send`，从不向代理发送消息。
+
+当 worker 必须报告 `worker_done`、通过协调者提问并被任务 ID 追踪时，使用 `orca orchestration worker-start`（或 `dispatch --inject`）。
+
+当您想要持久的 Run 命名空间和受监管的多代理循环时 —— 而非已弃用的 `orchestration run` 命令 —— 使用 `orca orchestration run-create` + 任务 + worker。
+
+## 完整指南
+
+命令标志随应用而演进。安装后，代理应运行：
+
+```bash
+orca skills get orchestration --full
+```

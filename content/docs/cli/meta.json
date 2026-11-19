@@ -1,0 +1,13 @@
+{
+  "title": "Orca CLI & 技能",
+  "defaultOpen": true,
+  "pages": [
+    "overview",
+    "reference",
+    "orchestration",
+    "automations",
+    "computer-use",
+    "worktree-checkpoints",
+    "skills"
+  ]
+}

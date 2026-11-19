@@ -1,0 +1,19 @@
+node_modules
+.next
+.source
+out
+.vercel
+next-env.d.ts
+*.tsbuildinfo
+.env
+.env.*
+
+# Sync temp artifacts (keep snapshot.json, checksums.json, TERMS.md, sync.mjs, TRANSLATE_TODO.json)
+.upstream-sync/_diffs/
+.upstream-sync/_sources/
+
+# Cloudflare Workers / OpenNext
+.open-next
+.wrangler
+.dev.vars
+cloudflare-env.d.ts

@@ -1,0 +1,61 @@
+---
+title: Hermes Agent 初始化
+description: 安装 Hermes Agent、登录并在 Orca 的 Chat 视图中使用它，涵盖其权限模式、网关和已知限制。
+---
+
+Orca 在终端中或其 [Chat 视图](/docs/agents/native-chat) 中运行 [Hermes Agent](https://hermes-agent.nousresearch.com/docs/)。Chat 通过 `hermes acp`（Hermes 的 Agent Client Protocol 服务器）与 Hermes 通信，需要 Hermes 0.23.0 或更高版本。
+
+## 安装并登录
+
+在运行工作空间的机器上安装 Hermes：
+
+```sh
+curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+```
+
+安装器会将 `hermes` 命令放到 `~/.local/bin`（Windows 上则放到 `%LOCALAPPDATA%\hermes` 的 `bin` 文件夹中）。Orca 即使该文件夹不在 `PATH` 上也会在那里查找。
+
+然后选择一个模型 provider 并登录：
+
+```sh
+hermes model
+```
+
+在 Hermes 还没有 provider 之前启动的聊天会显示一个 **登录** 卡片，它会运行同一条命令。要在不启动聊天的情况下检查安装，运行 `hermes acp --version` 和 `hermes acp --check`。
+
+## 在 Chat 中使用
+
+打开 **设置 → 代理**，在 **Hermes** 行上选择 **Chat** 让新的 Hermes 标签以聊天形式打开，或从新标签菜单中选择 **Hermes → 启动聊天**。
+
+模型和推理 effort 选择器会列出 Hermes 为其当前 provider 报告的内容。自定义的 OpenAI 兼容端点只列出它被设置为的那个模型。
+
+权限模式映射到 Hermes 自己的审批设置：
+
+| Orca 模式    | Hermes 的行为                                                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------------ |
+| 请求审批     | 每次文件编辑前都会询问，以及在其审批规则标记的命令前也会询问。                                          |
+| 允许编辑     | 允许在工作空间和临时文件夹内编辑；仍会对敏感路径和标记的命令请求审批。                                  |
+| 完全访问     | 允许文件编辑，Orca 会审批 Hermes 仍发送的每个请求。                                                    |
+
+哪些命令需要审批是 Hermes 的 profile 设置（`config.yaml` 中的 `approvals.mode`），而不是每个聊天独立配置的。Orca 绝不会以 `--yolo` 启动 Hermes，因此把聊天切回 **请求审批** 后会再次询问。
+
+**/compact** 会运行 Hermes 的 `/compress`，**/clear** 会开启新对话。Hermes 的其他斜杠命令会出现在编辑器的命令菜单中，除了 `/reset`（因为那会清空聊天转录下的对话）。
+
+## Hermes 网关
+
+Hermes 以每个 profile 一个网关进程的方式运行对话及其工具。第一次运行 `hermes acp` 时网关启动，在最后一个客户端离开后还会再运行大约十分钟。这带来几个影响：
+
+- 网关停止后的第一次聊天启动可能需要一分钟。
+- 工具以启动网关的那个进程的环境运行，因此你添加到 Hermes 行 **环境** 中的变量只有在网关重启后才会到达工具。用 `hermes gateway stop` 停止它。
+- 关闭聊天或按停止会取消网关中的当前回合。
+- Hermes 聊天不携带 Orca 的调用者身份，因为一个网关服务该 profile 上的每个聊天。因此 Hermes 工具内部的 `orca` 命令不能以运行它的聊天身份执行。
+
+## 远程主机
+
+在运行工作空间的机器（例如 [远程 Orca 服务器](/docs/remote-servers)）上安装并登录 Hermes。SSH 工作空间不支持 Chat。
+
+## 已知限制
+
+- Hermes 不通过 ACP 提供其问题工具，因此无法在 Chat 中询问多选题问题。
+- `delegate_task` 子代理在后台运行，稍后回合中报告结果；Chat 显示的是调用，而不是子代理卡片。
+- 会话历史尚未列出 Hermes 0.23 的会话，因此关闭的 Hermes 聊天无法从那里重新打开。

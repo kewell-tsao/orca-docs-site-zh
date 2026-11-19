@@ -1,0 +1,30 @@
+---
+title: 什么是 Orca？
+description: '60 秒介绍：Orca 适合谁、什么时候该用它。'
+---
+
+import { Callout } from '@/components/docs/prose'
+
+Orca 是一款桌面 IDE，支持并排运行多个 AI coding agent。每个任务拥有独立的 git worktree、独立的 agent 终端和独立的浏览器标签页——让你可以同时在 Claude Code、Codex、Cursor CLI 等之间并行分派工作，而无需 stash、来回切换分支或打断思路。
+
+## 何时使用 Orca
+
+- 你想让三个 agent 并行尝试同一个 bug 并选择最优解。
+- 你想在发布前认真评审 AI 生成的 diff。
+- 你已经付费使用 Claude Code、Codex 或 Cursor CLI，并希望在一个地方编排它们。
+- 你希望 agent 远程运行——通过 SSH、自托管的 Orca 服务器或按需 VM——而不必放弃你的 IDE。
+
+## 适合谁
+
+Orca 面向已经以写代码为生、希望用 AI 作为杠杆（而非替代品）的人。它假设你会读 diff、关心提交、保持 worktree 整洁。如果你要找的是无代码工具，那 Orca 不是。
+
+## Orca 不是什么
+
+- **不是模型。** Orca 运行你已经在用的 agent——自带 Claude、Codex 或 OpenCode 订阅。
+- **不是 git 替代品。** 每个 worktree 都是真正的 git worktree。你可以随时 `cd` 进去用纯 git 操作。
+- **不是托管 VPS 产品。** Orca 默认在你的桌面运行。远程计算使用你自己控制的机器和云账户——[SSH 目标](/docs/ssh)、[自托管 Orca 服务器](/docs/remote-servers)，或 [云 VM / 每工作区环境](/docs/ways-to-run#4-cloud-vms-per-workspace-environments)。
+
+<Callout title="后续步骤">
+  前往 [安装](/docs/install)，然后走一遍 [你的第一个 3-agent
+  会话](/docs/first-session)——这是本指南中最重要的一页。当你准备好把 agent 从笔记本上移开时，从 [Orca 的运行方式](/docs/ways-to-run) 开始。
+</Callout>

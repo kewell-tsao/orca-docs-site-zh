@@ -1,0 +1,35 @@
+---
+title: 浏览器-use profiles
+---
+
+浏览器-use profiles 让你可以用特定身份 — 已登录用户或特定 cookie jar — 运行 Orca 浏览器。当代理需要登录、复现特定会话 bug 或模拟多个用户时很有用。
+
+## 创建 profile
+
+1. 打开 [设置 → 浏览器 → Profiles](/docs/settings)。
+2. 点击 **添加 profile**，为它命名。
+3. 可选地用 cookies 和视口尺寸预置。
+
+## 浏览器身份
+
+浏览器用户代理是整个应用范围的选择，因为文档和 web worker 必须呈现一个统一的身份。打开 **设置 → 浏览器 → 浏览器身份** 在清理后的身份和 Electron 原生身份之间选择。更改在重启 Orca 后生效。
+
+**原生** 是默认值。它保留 Electron 自己的身份，Cloudflare 的安全检查和 Google 登录都接受它。少数站点会拒绝 Electron，因此 Orca 做了两个例外：Microsoft Teams 接收不带 Electron token 的用户代理，Chase 接收清理后的身份。
+
+**清理后** 会从用户代理中移除 Orca 和 Electron token，留下一个 Chrome 风格的身份。它不会让嵌入式浏览器变得与 Chrome 完全相同，Cloudflare 的整页安全检查在这个模式下可能陷入循环。Google 登录主机仍然看到 Electron 自己的身份，因为 Google 拒绝声称自己是 Chrome 或其他浏览器的登录。如果你之前选择过某个模式，Orca 会保留你的选择。
+
+## Cookie 导入与 Google 登录
+
+从设置或浏览器工具栏将 Chrome 或 Edge（或 cookie 文件）的 cookies 导入 profile。Orca 仅为导入中包含的域替换现有 cookies，因此同一 profile 中无关站点的登录保持完整。Google cookies 被排除 — 导入菜单会显示 **Google 登录不会被导入**，并告诉你要 **直接在 Orca 中登录 Google**。在导入跳过了 Google cookies 后，会有单独的警告指出运行导入的主机：在该主机上的 Orca 中打开浏览器，使用相同的 profile，然后登录。
+
+**默认 profile 上清除默认 cookies** 会在你确认后移除其中所有 cookies，让你在该 profile 中的站点登出。
+
+当站点请求来自 USB 安全密钥的可发现 passkey，而密钥提供多个账户时，Orca 会打开账户选择器，而不是静默取消登录。选择你想要的账户或取消请求。操作系统存储的平台 passkey 还不能在 Orca 中使用；此流程适用于外部 FIDO 安全密钥。
+
+## 使用 profile
+
+从浏览器工具栏选择 profile。该面板中的所有标签都会使用它，直到你切换。代理驱动的浏览器命令会继承活动 profile。
+
+## 隔离
+
+每个 profile 都有自己的存储分区 — cookies、本地存储、缓存。Profile 之间不会互相泄漏。

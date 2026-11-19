@@ -1,0 +1,160 @@
+---
+title: 定时自动化任务
+---
+
+Orca 自动化任务通过 CLI 定时运行提示，因此重复性的分类、评审和维护任务可以在您手动打开工作树之前启动。读完本页后，您将创建一个禁用的自动化任务、检查它，并在准备好时运行它。
+
+## 创建一个安全的第一个自动化任务
+
+在调整提示和目标时，从 `--disabled` 开始：
+
+```bash
+orca automations create \
+  --name "Weekday triage" \
+  --trigger weekdays \
+  --time 09:00 \
+  --prompt "Triage new issues and summarize blockers" \
+  --provider codex \
+  --repo my-repo \
+  --disabled \
+  --json
+```
+
+`--trigger` 接受 `hourly`、`daily`、`weekdays`、`weekly` 等预设值，以及 cron 表达式或 RRULE 字符串。当计划应遵循特定 IANA 时区而非运行时默认值时，使用 `--timezone <tz>`。
+
+## 选择运行位置
+
+当每次运行应在仓库中创建或选择工作时，使用 `--repo <selector>`。当自动化任务应在现有 Orca 工作树内部运行时，使用 `--workspace <selector>`：
+
+```bash
+orca automations create \
+  --name "Nightly status" \
+  --trigger "0 18 * * 1-5" \
+  --prompt "Summarize today's changes" \
+  --provider claude \
+  --workspace active \
+  --disabled
+```
+
+当省略两个目标标志时，Orca 会在可以时从当前 shell 目录解析封闭的工作树。
+
+## 定时运行前的预检
+
+使用 `--precheck <command>` 仅在定时运行前执行 shell 命令。退出代码 `0` 继续；任何其他退出、错误或超时跳过运行。使用 `--precheck-timeout <seconds>`（默认 `60`）设置时间限制。跳过出现在 Orca 运行历史和 `orca automations runs --id <automationId> --json` 中，状态为 `skipped_precheck`。
+
+```bash
+orca automations create \
+  --name "PR review" \
+  --trigger hourly \
+  --precheck "gh pr list --json number -q .[0].number" \
+  --prompt "Review requested PRs" \
+  --provider codex \
+  --repo my-repo \
+  --disabled \
+  --json
+```
+
+## 项目主机 / 初始化目标
+
+当自动化任务应在特定项目主机设置上运行，而非仅 `--repo` / `--workspace`：
+
+```bash
+orca automations create \
+  --name "Remote triage" \
+  --trigger daily \
+  --time 09:00 \
+  --prompt "Triage open issues" \
+  --provider claude \
+  --project <projectId> \
+  --host <host> \
+  --disabled \
+  --json
+```
+
+`--project` 接受项目 id 或 `orca project list` 中的显示名称。`--host` 接受 `local`、`ssh:<target-id>`、`runtime:<environment-id>`，或 `orca host list` 中的裸名称，当项目仅在一个主机上设置时可以完全省略 —— Orca 使用那个。当项目设置在多个主机上时，错误会命名每个主机以及选择它的标志。
+
+当您已有设置 id 时使用 `--project-host-setup <id>`。可选的 `--source-context '<json>'` 将任务/提供商数据固定到主机/账户（编辑时传递 `null` 清除）。
+
+## 在主机之间管理自动化任务
+
+桌面的 **自动化任务** 页面将此计算机和支持的已连接 Orca 主机的计划加载到一个表中。**主机** 列显示每个自动化任务的存储和计划位置；使用 **筛选 → 主机** 显示一个或多个主机，或返回 **所有主机**。
+
+当您在桌面 UI 中创建自动化任务时，**在...上创建** 会在选择项目之前选择其主机。项目选择器随后显示该目标主机上可用的项目。需要更新 Orca 服务器的已连接主机保持可见但被禁用，带有 **更新服务器** 消息，而不是从选择器中消失。
+
+## 错过运行的宽限期
+
+```bash
+orca automations edit <automationId> --missed-run-grace-minutes 30 --json
+```
+
+## 重用现有自动化任务会话
+
+对于目标为现有工作树的自动化任务，当后续运行应在之前的活动自动化任务终端中继续，而不是每次都从空白终端开始时，添加 `--reuse-session`：
+
+```bash
+orca automations create \
+  --name "Inbox digest" \
+  --trigger hourly \
+  --prompt "Summarize unread mail" \
+  --provider codex \
+  --workspace active \
+  --reuse-session \
+  --disabled
+```
+
+使用 `orca automations edit <automationId> --fresh-session --json` 将自动化任务切换回每次运行使用新终端。
+
+## 额外代理参数
+
+为一个自动化任务向代理命令添加参数，例如不同的模型：
+
+```bash
+orca automations create \
+  --name "Docs pass" \
+  --trigger daily \
+  --prompt "Tidy the docs" \
+  --provider claude \
+  --extra-agent-args="--model opus --add-dir docs"
+```
+
+在每次新运行时，Orca 从该代理的主机默认参数开始，并追加额外参数。额外参数中的模型或效果选项会替换默认值中的。因为值以 `--` 开头，所以使用 `=` 传递。
+
+保存的额外参数在每个主机上使用相同的引号，包括 Windows：将包含空格的值用单引号或双引号包裹，并使用单引号保留路径中的反斜杠，例如 `--add-dir 'C:\work\my docs'`。Orca 将这些作为字面量参数传递；不支持 shell 命令和展开。
+
+额外参数仅接受模型和效果选项，以及 Claude 的 `--add-dir`，适用于 Antigravity、Claude、Codex、CodeBuddy、Cursor、Grok、OMP 和 Pi。对于 Pi，使用 `--model` 和 `--thinking`；默认的 `--provider` 保持不变并限定模型范围。权限、配置、提示和会话选项被拒绝。额外参数要求每次运行都使用新会话，因此不能与 `--reuse-session` 组合。使用 `orca automations edit <automationId> --extra-agent-args=` 清除它们。
+
+## 评审并启用
+
+在启用之前列出并检查自动化任务：
+
+```bash
+orca automations list --json
+orca automations show <automationId> --json
+orca automations edit <automationId> --enabled --json
+```
+
+在桌面自动化任务列表中，当您有很多计划时，使用搜索字段按 **名称**、**项目** 或 **提示** 文本筛选。
+
+使用 **筛选** 按 **主机**、**启用** 或 **暂停** 状态、上次运行结果（**失败**、**成功** 或 **从未运行**）或一个或多个 **代理** 缩小列表范围。在代理子菜单内部搜索，当列表很长时；活动筛选器显示为可移除的标签，位于表上方。表显示主机、上次运行结果和每个自动化任务的相对时间。点击 **名称** 或 **上次运行** 列进行排序；名称按字母顺序排序，上次运行默认最新在前。
+
+当自动化任务列表打开时，在搜索字段中键入并按 **上箭头** 或 **下箭头** 在可见匹配行中移动选择。列表保持所选行在视图中；修改或输入时保持正常光标行为。
+
+使用 `edit` 更改名称、提示、提供商、目标、计划或启用状态。`remove` 删除自动化任务及其运行历史。
+
+## 按需运行
+
+创建自动化任务后，手动触发它以在下一次计划时间之前检查提示和目标：
+
+Orca 中的 **立即运行** 和 `orca automations run` 有意跳过预检，因此您可以测试自动化任务或覆盖其计划条件。
+
+```bash
+orca automations run <automationId> --json
+orca automations runs --id <automationId> --json
+```
+
+如果运行在打开工作空间或重新连接到目标之前失败，请在 Orca 中打开该运行并点击 **重新运行** 为相同自动化任务排队新的手动运行。
+
+## 后续步骤
+
+- [Orca CLI 概览](/docs/cli/overview) —— 查看 CLI 其余功能，包括工作树、终端和浏览器控制。
+- [技能注册表 & MCP](/docs/cli/skills) —— 安装 Orca CLI 技能，以便代理可以调用相同的命令。

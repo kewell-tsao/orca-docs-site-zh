@@ -1,0 +1,181 @@
+---
+title: Orca 技能注册表 & MCP
+description: 使用 npx skills add 安装 Orca 代理技能。混合存根保持精简；orca skills get 提供版本匹配的指南。Orca 自行更新其技能，无需 npx。
+keywords:
+  - Orca skills
+  - npx skills add
+  - orca-cli skill
+  - orchestration skill
+  - Orca Computer Use skill
+  - orca-linear skill
+  - orca-emulator skill
+  - orca-emulator-android skill
+  - orca-plugin-authoring skill
+---
+
+Orca 附带 **技能**，代理将其安装到自己的技能目录中。公共安装包是 **混合发现存根**：简短的 `SKILL.md` 文件，告诉代理何时启用 Orca 以及如何从正在运行的 CLI 加载完整指南。命令标志存在于二进制文件中，因此它们不会随应用版本漂移。
+
+## 可安装的 Orca 技能
+
+使用 `npx skills add` 配合公共 Orca 仓库和技能名称。默认代理初始化通常安装 `orca-cli`、`orca-computer-use` 和 `orchestration`。
+
+| 技能                                               | 安装                                                                                   | 用途                                                         |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| [`orca-cli`](#orca-cli)                             | `npx skills add https://github.com/stablyai/orca --skill orca-cli --global`               | 工作树、终端、文件、自动化任务、嵌入式浏览器。               |
+| [`orchestration`](#orchestration)                   | `npx skills add https://github.com/stablyai/orca --skill orchestration --global`          | 多代理 Run、任务、受监管的 worker、消息、门控。              |
+| [`orca-computer-use`](#orca-computer-use)           | `npx skills add https://github.com/stablyai/orca --skill orca-computer-use --global`      | 通过无障碍树和安全 UI 操作操作桌面应用。                     |
+| [`orca-linear`](#orca-linear)                       | `npx skills add https://github.com/stablyai/orca --skill orca-linear --global`            | 通过 `orca linear` 读写 Linear 工单。                        |
+| [`orca-emulator`](#orca-emulator)                   | `npx skills add https://github.com/stablyai/orca --skill orca-emulator --global`          | iOS Simulator 控制。                                        |
+| [`orca-emulator-android`](#orca-emulator-android)   | `npx skills add https://github.com/stablyai/orca --skill orca-emulator-android --global`  | 通过 adb 控制 Android 模拟器/设备。                         |
+| [`orca-per-workspace-env`](#orca-per-workspace-env) | `npx skills add https://github.com/stablyai/orca --skill orca-per-workspace-env --global` | 每个工作空间的环境 recipe（`orca.yaml`）。                   |
+| [`orca-plugin-authoring`](#orca-plugin-authoring)   | `npx skills add https://github.com/stablyai/orca --skill orca-plugin-authoring --global`  | 构建、调试和发布 Orca 插件。                                 |
+
+## 混合存根 vs 实时指南
+
+在 `npx skills add` 之后，代理会看到一个简短的存根，说明：
+
+1. 为此会话解析 CLI 可执行文件（`ORCA_CLI_COMMAND`、`orca-dev`、Linux 上的 `orca-ide`，否则为 `orca`）。
+2. 加载完整指南：`orca skills get <topic>`（或 `--full` 获取长指南）。
+3. 优先使用 `--json`，不要凭记忆发明标志。
+
+```bash
+orca skills list
+orca skills get orca-cli
+orca skills get orchestration --references
+orca skills get orchestration --reference recovery-and-cleanup
+orca skills get orchestration --full
+orca skills get orca-linear --json
+```
+
+指南的操作门控命名条件引用。`--reference <name>` 单独打印其中之一，因此代理只为该文档付费加上内核，而非整个包；`--references` 列出名称。名称可以是裸名（`recovery-and-cleanup`）或指南编写方式（`references/recovery-and-cleanup.md`）。`--full` 仍打印内核加上每个引用。
+
+当代理需要确定性输出用于自动化时添加 `--json`。`skills show` 是 `skills get` 的别名。
+
+## 保持技能最新
+
+Orca 自行更新其技能，无需 `npx`、Git、Node 或网络。当技能文件夹仅包含 `SKILL.md` 且该文件与 Orca 附带的版本匹配时，副本算作为 Orca 未触碰的副本。只有这些副本会原地重写（共享的 `~/.agents/skills/<name>` 或代理技能文件夹中的真实文件夹，如 `~/.claude/skills/<name>`）。其他任何内容都保持不动并报告：**您已更改此副本**，或 **不同的技能已使用此名称**。Orca 从不删除它没有创建的文件夹。
+
+当此 Orca 构建附带您安装的技能的更新版本时，应用会：
+
+- 显示 **有更新可用** 的提示和徽章。更新仅触碰已持有该技能的位置；它从不为另一个代理添加技能。
+- 打开 **更新技能**，列出每个位置以及更新在那里会做什么：**无更改**、**将更新**、**将链接**，或带有原因的 **保持不动**。保持不动的副本有一个 **替换** 选项（默认关闭）；替换先将该副本移动到 `~/.agents/.orca-skill-backups/`，然后将 Orca 的副本放在原地。
+- 完全执行您评审的计划：如果文件夹在您打开对话框后发生了更改，该技能报告 **自您评审以来已更改**，那里不会写入任何内容。
+- 按技能显示结果，例如 `已更新 · 1 保持不动：您已更改此副本`，以及在状态栏上的进度指示。
+
+这覆盖了在此计算机上安装的技能。应用尚未检查 WSL 项目、SSH 主机或已配对的 Orca 服务器；在那里运行 `orca skills update`。
+
+在无头主机上（SSH、容器、CI、`orca serve`）使用 CLI。它在运行它的机器上运行相同的规划器，并且 **不需要** 正在运行的 Orca 应用：
+
+```bash
+orca skills install                                      # 列出可安装的名称
+orca skills install --skill orca-cli --skill orchestration
+orca skills install --skill orca-cli --agent claude,codex
+orca skills update --all --dry-run                       # 会更改什么，以及计划摘要
+orca skills update --all
+orca skills update --all --force                         # 也替换保持不动的副本（保留备份）
+```
+
+- 默认作用域是 **全局**；传递 `--local` 仅针对当前项目（Orca 仅链接到项目已有的代理文件夹中）。
+- 目标是 Orca 在主机上检测到的代理加上共享的 `.agents/skills` 文件夹。使用 `--agent <name>[,<name>…]` 选择（技能 CLI 的键如 `claude-code` 仍可用），或使用 `--agent universal` 仅针对共享文件夹。
+- `update` 仅触碰已持有该技能的位置；`install` 添加它，包括新检测到的代理。
+- `--dry-run` 打印计划及其摘要，不写入。实际运行会再次规划，仅在计划仍匹配时写入。
+- `--json` 适用于干运行和实际运行。当位置在运行期间失败或更改时退出代码为 1；保持不动的文件夹为警告。
+
+## 从技能页面安装和删除
+
+当应用内安装询问工作空间目标时，按工作空间名称或类型（**工作树** / **文件夹**）在选择器中搜索。代理选择器分离 Orca 始终包含的目录和您可以选择的额外代理目录，因此您可以在继续之前审查确切的安装目标。
+
+要删除扫描到的技能，打开其操作菜单并选择 **删除…**。对于多个技能，打开页面的 **更多操作** 菜单，选择 **删除技能…**，然后选择符合条件的结果。Orca 会在确认之前说明为什么某个副本无法删除 —— 例如因为它是附带的、插件管理的、只读的，或在可删除的技能文件夹之外。这与 **管理安装** 不同，后者管理从共享链接安装的副本。
+
+## 在主机之间共享私有技能
+
+打开 **技能 → 共享技能** 将一个技能或一个包发布在一个未列出、可撤销的链接之后。发布需要您的 Orca 账户。发布前审查包含的文件、脚本、可执行文件、摘要和可选的发布说明；每个发布的版本都是不可变的，因此后续本地编辑不会静默更改接收方安装的内容。
+
+拥有活动链接的任何人都可以在不登录的情况下检查和安装共享技能，因此将链接视为凭据。接收方审查确切版本，选择全部或部分技能，然后在此计算机上选择全局或工作空间作用域、已配对的 Orca 运行时、WSL 或 SSH 主机。现有修改的技能默认为 **保留本地**。使用 **技能 → 管理安装** 更新、回滚或删除 Orca 安装的副本，使用 **设置 → 共享技能** 复制或撤销您的活动链接。撤销链接会阻止未来访问，但不会删除已安装的副本。
+
+在您启用单独的、默认关闭的 **设置 → 共享技能 → 允许代理和 Orca CLI 发布技能链接** 权限后，代理可以从 CLI 发布显式命名的集合：
+
+```bash
+orca skills installed --json
+orca skills share --skill frontend --skill testing --bundle-name "Team Toolkit" --json
+```
+
+`skills installed` 返回安全的选择器而不暴露本地路径。`skills share` 接受确切的发现 ID 或无歧义的名称；不接受任意路径或 `--all`。
+
+## orca-cli
+
+```bash
+npx skills add https://github.com/stablyai/orca --skill orca-cli --global
+```
+
+安装后，使用 `orca skills get orca-cli` 加载版本匹配的命令指南。参见 [Orca CLI](/docs/cli/overview)。
+
+## orchestration
+
+```bash
+npx skills add https://github.com/stablyai/orca --skill orchestration --global
+```
+
+当代理应该通过 Run、任务、受监管的 worker 和决策门协调其他代理时使用。参见 [编排](/docs/cli/orchestration)。在更改编排状态之前始终加载 `orca skills get orchestration --full` —— 旧的 `orchestration run` 命令已弃用。
+
+<span id="computer-use" />
+
+## orca-computer-use
+
+```bash
+npx skills add https://github.com/stablyai/orca --skill orca-computer-use --global
+```
+
+当代理需要检查和操作本地桌面应用窗口时使用。参见 [电脑操控](/docs/cli/computer-use)。
+
+## orca-linear
+
+```bash
+npx skills add https://github.com/stablyai/orca --skill orca-linear --global
+```
+
+代理应在更改工单之前加载 `orca skills get orca-linear`。涵盖 `issue --full`、`save-issue`、`list-issues`、关系、完成附加+评论流程，以及不受信任的工单规则。现有 `linear-tickets` 安装仍可解析。参见 [CLI 参考 → Linear](/docs/cli/reference#linear)。
+
+## orca-emulator
+
+```bash
+npx skills add https://github.com/stablyai/orca --skill orca-emulator --global
+```
+
+当代理应通过 `orca emulator` 命令从 Orca 内部控制 iOS Simulator 时使用。
+
+## orca-emulator-android
+
+```bash
+npx skills add https://github.com/stablyai/orca --skill orca-emulator-android --global
+```
+
+用于 adb 连接的 Android AVD/设备：列表/启动、点击/滑动/输入、硬件按钮、安装/启动、权限、无障碍树、logcat。使用 `orca skills get orca-emulator-android` 加载详情。
+
+## orca-per-workspace-env
+
+```bash
+npx skills add https://github.com/stablyai/orca --skill orca-per-workspace-env --global
+```
+
+在 `orca.yaml` 中设置或调试每个工作空间的环境 recipe 时使用。参见 [运行 Orca 的方式](/docs/ways-to-run#4-cloud-vms-per-workspace-environments) 和 `orca-per-workspace-env` 技能，了解 recipe 字段和生命周期命令。
+
+## orca-plugin-authoring
+
+```bash
+npx skills add https://github.com/stablyai/orca --skill orca-plugin-authoring --global
+```
+
+当代理应该制作、调试、测试或发布 Orca 插件时使用：主题、语法、自定义编辑器、TSX 组件面板和 worker 命令。使用 `orca skills get orca-plugin-authoring` 加载；其引用（组件、主机 API、事件、清单字段、CLI）从正在运行的 Orca 生成。
+
+## 发现源
+
+Orca 的技能 UI 扫描已安装的技能目录，包括 Claude、Codex、Agent Skills 和 **OMP**（`~/.omp/agent/skills`），因此放置在那里的技能无需手动符号链接即可显示。
+
+## 添加您自己的技能
+
+任何带有 `skills/<name>/SKILL.md` 文件的仓库都可以通过 `npx skills add` 安装。将您的代理指向内部仓库以赋予其公司特定的能力。
+
+## MCP 服务器
+
+模型上下文协议 (MCP) 服务器向兼容的代理暴露外部工具。在 [设置 → 集成 → MCP](/docs/settings) 下注册 MCP 端点；这些工具出现在支持 MCP 的代理 CLI 内部。

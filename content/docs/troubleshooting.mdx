@@ -1,0 +1,84 @@
+---
+title: 故障排查 & FAQ
+---
+
+## 代理无法启动
+
+- 手动打开终端运行代理的 CLI。如果那里失败，是 CLI 本身的认证或安装问题 —— 不是 Orca。
+- 确保 CLI 在 Orca 看到的 `PATH` 上（检查 [设置 → 代理](/docs/settings)）。
+- 尝试标签上的 **重启** 标签。
+
+## 差异视图看起来不对 / 卡住
+
+- 点击差异工具栏上的刷新图标 —— Orca 重新读取工作树。
+- 外部 `git` 操作（rebase、reset）可能在刷新之间发生。
+
+## 工作树创建失败
+
+- 起始引用可能未被 fetch。在仓库中打开终端运行 `git fetch origin`。
+- 目标目录可能已经有该分支的工作树 —— 删除它或选择新的分支名称。
+
+## Orca CLI 说"命令未找到"
+
+在 [设置 → 通用 → Orca CLI](/docs/settings) 下注册 CLI。在 macOS 上它将 shim 安装到 `~/.local/bin`；确保它在您的 shell 的 `PATH` 上。
+
+## SSH 连接但远程终端失败
+
+- 首次连接到 SSH 主机或 WSL 发行版时，Orca 在那里安装其服务器需要的 Node.js 版本。它在这台电脑上下载，或在失败时在主机上下载。如果您的网络阻止 nodejs.org，将 **设置 → 高级 → 网络 → Node.js 下载镜像** 设置为 `nodejs.org/dist` 的副本，或在另一台机器上下载错误中命名的文件并将其复制到此电脑上错误给出的路径。然后再次连接。
+- 在 Linux 上，如果终端从不生成，安装 C/C++ 工具链：make、g++/clang++、python3（参见 [SSH 工作树](/docs/ssh)）。
+- 安装工具后重新连接，以便 Orca 可以重新安装原生模块。
+
+## SSH 适用于文件但"下载文件夹"不行
+
+文件夹下载需要递归 SFTP 传输。仅系统 SSH 的连接可能仍能工作文件下载。作为备用使用终端 `tar`/`scp`。
+
+## "在 VS Code、Cursor 或 Zed 中打开"被禁用或仅限本地
+
+- 使用 SSH 工作树（不是远程 Orca 服务器活动运行时）。
+- 将 Open-in 命令设置为 VS Code / Insiders、Cursor 或 Zed，而非多参数 shell 命令。
+- 如果主机已移除，刷新 SSH 目标。
+
+## Kerberos 登录失败
+
+- 确保 `klist` 显示主机领域的有效票据。
+- 在 OpenSSH 配置中为该主机确认 `GSSAPIAuthentication yes`，然后在设置 → SSH 中重新导入或重新测试目标。
+
+## 浏览器说 `browser_no_tab`
+
+当前工作树中没有打开的标签。用 `orca tab create --url ...` 打开一个，或手动打开浏览器面板并导航。
+
+## 性能 & 内存
+
+- 关闭您未积极使用的工作树。每个工作树保持文件观察器存活。
+- 带有许多浏览器标签的分屏布局是最大的 RAM 消耗者 —— 关闭您不需要的浏览器。
+
+## Windows：RAM 消失但没有应用使用它
+
+Orca 工作负载生成许多短命进程（钩子、`git status` 轮询、代理 CLI）。如果有 bug 的内核驱动保持对每个退出进程的引用，已退出的进程从不释放：RAM 泄漏到任务管理器无法归因给任何应用的内核内存中，启动新进程变慢，因此 Orca 经常被指责。
+
+- **快速检查：** 任务管理器 → 详细信息 → **PID** 列。Windows 重用已释放进程的 PID，因此它们通常保持在几万；在进程数量正常时 PID 达到几十万或更多可能表明已退出的进程正在堆积。[RAMMap](https://learn.microsoft.com/en-us/sysinternals/downloads/rammap) 中的巨大 **页表**（通常是几百 MB）是另一个迹象。
+- **一个已知原因：** AMD 集成 GPU 驱动 `amdkmdag.sys`（在 `31.0.24002.92`、Adrenalin 24.1.1 中泄漏）。检查您实际的 `amdkmdag.sys` 版本，因为 OEM 包可能日期更新但仍泄漏。测试版本、检查脚本和变通方案参见 [#28293](https://github.com/stablyai/orca/issues/28293)。
+- **修复：** 安装 AMD 自己的驱动（测试干净版本 `32.0.21045.5002`）。在有 MUX 开关的笔记本上，离散 GPU 模式也停止泄漏（更高功耗、更短电池寿命）。AMD 的 Auto-Detect 在该模式下看不到 iGPU，因此切换到 Hybrid 并重启后再安装 AMD 驱动。
+- **用重新启动恢复内存**，而非关机：启用快速启动时，关机保留内核状态，因此泄漏的内存会在其中存活。
+
+## GitHub PR 面板 / 检查 / 任务错误
+
+速率限制、错误的 `gh` 认证、缺少作用域和仓库访问问题都会出现在源代码控制和 PR 检查面板中。完整矩阵参见 **[故障排查 GitHub 错误](/docs/github-errors)**（包括为什么设置中的 **GitHub API 预算** 可能看起来正常而 REST 仍被阻塞）。
+
+快速检查：
+
+```bash
+gh auth status -h github.com
+gh api user
+gh api rate_limit --jq '.resources.core'
+```
+
+## 日志
+
+**帮助 → 打开日志** 打开包含 Orca 日志的目录。提交 bug 时附上这些。
+
+## 报告问题
+
+- **帮助 → 发送反馈**（应用内）—— 在对话框中粘贴或拖动截图，或选择图像文件；提交前显示缩略图。bug 难以复现时附加 [日志](#logs)。
+- [GitHub Issues](https://github.com/stablyai/orca/issues) —— bug 和功能请求。
+- [Discord](https://discord.gg/fzjDKHxv8Q) —— 实时帮助。

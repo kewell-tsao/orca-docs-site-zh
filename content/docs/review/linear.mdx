@@ -1,0 +1,39 @@
+---
+title: Linear items 抽屉
+---
+
+import { Callout } from '@/components/docs/prose'
+
+Linear 与托管审阅 providers 并列位于任务抽屉中。像关联 GitHub issues 一样浏览、创建、更新 Linear issues 并将其关联到工作树。
+
+## 初始化
+
+1. 打开 [设置 → 集成 → Linear](/docs/settings)。
+2. 粘贴来自 [Linear → 设置 → API](https://linear.app/settings/api) 的个人 API token。
+3. 选择你想查看的团队。
+
+## 使用 Linear
+
+- 任务抽屉在一个合并视图中显示 GitHub 和 Linear issues。
+- 在 Linear 任务视图中使用 **有工作空间** 模式，仅列出已关联到本地工作树或文件夹工作空间的 issues。带有已附加工作空间的行会打开该工作空间；你仍可以从同一个 issue 启动一个新的。
+- 从 Linear issue 创建工作树会打开交互式工作空间编辑器（与 GitHub items 同一路径），这样 issue 命令自动化、SSH 和文件夹工作空间都适用。Orca 预填名称并附加 issue ID。当 Linear 为 issue 暴露了分支名时，Orca 会使用该名称作为工作树分支（与 Linear 建议的命名相同），而不仅仅是标题的 slug。issue 详情菜单可以 **复制建议的分支名**。
+- 创建后，在工作空间卡片上打开 **编辑工作树详情**，使用带有 **Linear** 标签的 **Issue** 字段（或粘贴 Linear URL）关联或更换 issue，而无需重新创建工作树。GitHub 和 Linear 共享这一个字段 — 保存新的关联会替换之前 provider 的关联。
+- 打开 issue 详情视图更新诸如状态、assignee、优先级、标签和估算等字段。优先级使用 Linear 自己的优先级图标渲染，因此抽屉与你在 Linear 中看到的一致。
+- 当你从 Linear issue 启动代理时，Orca 会将 issue 描述、评论和子 issue 中嵌入的内联图像与媒体包含在提示上下文中，这样代理可以看到模型或 bug 复现，无需你手动粘贴截图。
+- **新 Linear issue** 和 **新 Linear 项目** 会在你意外关闭对话框时保留标题/描述（以及项目名、摘要和简介）— Escape、取消、外部点击或关闭。在同一应用会话中重新打开对话框时文本会恢复；成功创建后草稿会清空，且不会跨应用重启保留。团队/项目选择器仍然使用常规的打开时默认值。
+- 长列表使用 **加载更多** 操作分页 — 当项目的 issues 超过抽屉初始能容纳的数量时很有用。
+- 布局选择会跨重启保持：列表 vs 看板、分组方式、排序方式、可见列和属性过滤器。属性过滤器是**按 Linear 工作空间**存储的，因此切换工作空间不会应用另一个工作空间的过滤器。
+- Orca 会记住你每个仓库最后使用的任务来源（GitHub、Linear 或 Jira）。
+
+<Callout>
+  Linear 状态同步（创建工作树时将 issue 移动到"In Progress"）是按团队选择加入的。
+</Callout>
+
+## 代理与 CLI
+
+代理可以通过 `orca linear`（以及 `orca-linear` 技能）读取和写入 Linear。该接口包括 MCP 兼容的创建/更新和列表过滤器（`save-issue`、`list-issues`、关系添加/移除），以及诸如 `--activity` 和 `--full` 之类的 issue 上下文标志。参见 [CLI 参考 → Linear](/docs/cli/reference#linear)。
+
+## 后续步骤
+
+- [托管审阅、issues & Actions](/docs/review/github) — 任务进行中后将代码审阅状态关联到工作树。
+- [在 Orca 中提交与推送](/docs/review/commit-push) — 在不离开 Orca 的情况下发布分支。

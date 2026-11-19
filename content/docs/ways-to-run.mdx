@@ -1,0 +1,128 @@
+---
+title: 运行 Orca 的方式
+description: 本地桌面、SSH 主机、自托管 Orca 服务器和按需每个工作空间的 VM —— 为每个任务选择合适的计算。
+---
+
+import { Callout, ImagePlaceholder } from '@/components/docs/prose'
+
+Orca 不锁定在您的笔记本上。每个工作树在某个地方运行 —— 在您面前的机器上、您已经拥有的盒子上、共享的永远在线服务器上，或为那个一个工作空间启动的全新云 VM 上。
+
+本页面是地图。深度内容在链接的页面上。
+
+## 概览
+
+| 模式                                     | 文件和代理在哪里                    | 谁拥有机器              | 最适合                                      |
+| ---------------------------------------- | ---------------------------------------------- | --------------------------------- | --------------------------------------------- |
+| **本地**                                | 您的桌面                                   | 您                               | 日常编码、快速迭代             |
+| **SSH 目标**                           | 您通过 SSH 连接到的远程主机          | 您（或您的团队）                | 开发机、GPU 主机、永远在线 VPS           |
+| **远程 Orca 服务器**                   | 运行 Orca 桌面或 `orca serve` 的机器 | 您（或您的团队）                | 持久共享运行时、移动、自动化任务 |
+| **Cloud VM / 每个工作空间的环境** | 每个工作空间的一次性 VM/沙箱          | 您的云账户（自带提供商） | 隔离的、临时的代理计算             |
+
+Orca **不** 销售托管 VPS 托管。远程模式始终使用您控制的机器和云账户。
+
+## 1. 本地桌面
+
+安装 Orca、打开项目、创建工作树。代理、终端和浏览器与 UI 在同一台机器上运行。
+
+这是大多数人的默认路径。参见 [您的第一个 3 代理会话](/docs/first-session) 和 [工作树](/docs/model/worktrees)。
+
+## 2. SSH 目标
+
+将 Orca 指向任何 SSH 主机 —— 更强大的 Mac mini、Linux VPS、GPU 盒子、带 SSH 的云沙箱。创建工作树时，在 **在...上运行** 下选择该主机。代理和 `git worktree` 在远程运行；编辑器、差异和 UI 留在您的笔记本上。
+
+**何时合适：** 远程已经有您的仓库、工具和凭据，您希望一台笔记本 Orca 驱动很多盒子。
+
+**初始化草图：**
+
+1. 在 [设置 → SSH](/docs/settings) 下添加主机。
+1. 测试连接（仓库工作树需要主机上 git 可用）。
+1. 创建工作树并在 **在...上运行** 下选择 SSH 目标。自动完成列出就绪主机，对于已连接但尚未为此项目初始化的主机，列出不可选择的 **需要初始化** 行。
+
+SSH 工作树可以在 VS Code Remote-SSH 中打开，当 SFTP 允许时下载远程文件夹，并且可以在远程无法编译终端原生模块时仍然可用于文件/git（为 shell 安装构建工具）。详情：[SSH 工作树](/docs/ssh) 和配方 [通过 SSH 在远程机器上工作](/docs/recipes/remote-worktrees)。
+
+## 3. 远程 Orca 服务器
+
+让 Orca 在您控制的机器上运行 —— 旧笔记本、Mac mini、家庭服务器、云 VPS 或团队盒子。将您的笔记本、浏览器客户端或手机配对到该运行时。**服务器** 拥有项目、工作树、终端和代理进程；客户端是 UI。
+
+**何时合适：**
+
+- 您希望代理在笔记本休眠后继续运行
+- 移动应重新连接到同一会话
+- 自动化任务或后端应在稳定主机上启动会话
+
+**最简单的初始化：** 在两台电脑上安装 Orca 和 Tailscale。在服务器上，打开 **设置 → 远程 Orca 服务器 → 将此应用通告为服务器 → 新链接**，选择其 Tailscale 地址，生成访问链接。在客户端上，选择 **添加服务器** 并粘贴该链接。
+
+对于无头 Linux 服务器或服务管理的 VM，使用 `orca serve` 作为替代。在 Linux 上 CLI 命名为 `orca-ide`，因此首次启动为：
+
+```bash
+orca-ide serve --bind <server-tailscale-ip> --pairing-address <server-tailscale-ip>
+```
+
+完整详情：[远程 Orca 服务器](/docs/remote-servers)。
+
+### SSH vs 远程 Orca 服务器
+
+|               | SSH 工作树                                      | 远程 Orca 服务器                                             |
+| ------------- | -------------------------------------------------- | -------------------------------------------------------------- |
+| 运行时所有者 | 笔记本 Orca                                        | 远程机器（Orca 桌面或 `orca serve`）                  |
+| 断连    | 代理在主机上继续运行；笔记本重新附加 | 完整会话状态位于服务器上                         |
+| 多客户端  | 一台笔记本驱动主机                         | 笔记本、Web、移动和自动化任务可以共享同一运行时 |
+| 典型初始化 | 导入 SSH 配置，选择 **在...上运行**                 | 共享服务器应用或运行 `orca serve`，然后用 URL 配对 |
+
+## 4. Cloud VM（每个工作空间的环境）
+
+每个工作树可以启动自己的按需环境 —— 云沙箱、VM 或本地 Docker 容器 —— 从仓库内检查的 **recipe**（`orca.yaml` + 生命周期脚本）。创建启动它；暂停/恢复/销毁拆除它。Orca 是薄薄的包装器：您的提供商账户、镜像和账单仍归您所有。
+
+在产品 UI 中此表面标记为 **Cloud VM**，位于 [设置 → 实验性功能](/docs/settings) 下。Recipe 仍然创建每个工作空间的环境。
+
+目前人们连接的提供商包括 Vercel Sandbox、Fly、Modal、普通 SSH 主机和本地 Docker。连接要么是 **Orca 服务器**（recipe 启动 `orca serve` 并返回配对 URL），要么是 **SSH**（recipe 返回 Orca 拨号的连接详情）。
+
+<ImagePlaceholder
+  src="/docs/ways-to-run-per-workspace-env.png"
+  caption="设置 → 实验性功能 → Cloud VM —— 启用技能，然后让代理为仓库设置 recipe。"
+/>
+
+<ImagePlaceholder
+  src="/docs/ways-to-run-local-sidebar.png"
+  caption="从工作空间侧边栏选择本地或远程运行目标。"
+/>
+
+**何时合适：** 您希望每个任务都有干净的隔离、一次性计算或每个代理启动的标准环境。
+
+**初始化草图：**
+
+1. 在 [设置 → 实验性功能](/docs/settings) 下启用 **Cloud VM**。面板包含简短的 **创建 Cloud VM** 指南和 recipe/运行时控件。
+1. 如需要安装/更新 Cloud VM / 每个工作空间环境技能。
+1. 在任何工作空间中，让您的代理：
+
+   ```text
+   Use the orca-per-workspace-env skill to set up a per-workspace environment for this repo.
+   ```
+
+1. 技能逐步进行前置条件 → 基础快照 → 代理认证 → `orca.yaml` recipe → doctor 验证。
+1. 当 recipe 出现在 **Recipes** 下时，创建工作树并在 **在...上运行** 下选择它。
+
+Recipe 仅在项目的 **主** 检出的 `orca.yaml`（不只是功能分支）上存在 `environmentRecipes` 条目时才会为工作空间创建显示。Doctor 和实时供应仍可在任何分支上运行，而您在迭代脚本时。
+
+<Callout title="自带云 —— 不是 Orca VPS">
+  Cloud VM 不提供 Orca 托管的 VPS。您自带提供商（并向该提供商付费）。Orca
+  运行您的 create/suspend/resume/destroy 脚本并连接它们打印的配对 URL 或 SSH
+  详情。
+</Callout>
+
+## 如何选择
+
+- **保持本地** 如果笔记本足够快，代理生命周期短。
+- **SSH** 如果您已有 VPS 或开发机，并希望代理在那里运行而不安装第二个 Orca 运行时。
+- **远程 Orca 服务器** 如果您想要一个永远在线的 Orca 运行时，用于移动、浏览器和自动化任务。
+- **Cloud VM / 每个工作空间的环境** 如果每个任务应该获得由 recipe 定义、随工作树消亡的全新沙箱。
+
+您可以在一个安装中混合模式：本地工作树用于快速编辑，SSH 用于 GPU 盒子，recipe 用于类似 CI 的隔离。
+
+## 相关
+
+- [SSH 工作树](/docs/ssh)
+- [远程 Orca 服务器](/docs/remote-servers)
+- [工作树](/docs/model/worktrees)
+- [移动](/docs/mobile)
+- [设置参考](/docs/settings)

@@ -1,0 +1,31 @@
+---
+title: 代理 hooks 与内存
+---
+
+import { Callout } from '@/components/docs/prose'
+
+Orca 与 Claude Code 和 Codex 已在使用的代理 hook 与内存约定和谐共处 — 它会读取它们、尊重它们，并为那些在 IDE 上下文中有意义的部分提供 UI 入口。
+
+## 按仓库 hooks
+
+Orca 读取每个仓库的 `.claude/` 和 `.codex/` 配置。当 Orca 在该仓库的工作树中启动代理时，你已有的 hooks 就会运行。
+
+## 工作树 setup hooks
+
+配置命令，让它们在工作树创建后自动运行 — 例如 `pnpm install`、`direnv allow`，或恢复 `.env` 文件的脚本。在 [设置 → 仓库 → Hooks](/docs/settings) 下设置。
+
+## 内存文件
+
+Claude 的 `CLAUDE.md` 和 Codex 的 `AGENTS.md`（在仓库根目录或嵌套位置）保持不变 — 它们属于代理。Orca 像任何其他文件一样在文件资源管理器中展示它们，这样你可以内联编辑。
+
+## 代理状态 hooks
+
+**设置 → 代理 → 代理状态 hooks** 控制 Orca 托管的、向 UI 报告 working / waiting / done 的 hooks。关闭此设置会移除那些托管 hooks 并停止重新安装；打开则恢复它们**无需重启 Orca**（在 Windows 上，WSL hook 中继也遵循同样的实时开关）。CLI 等价命令：`orca agent hooks status|on|off --json`。
+
+## 跨越重启
+
+hook 端点被写入磁盘（POSIX 上为 `{userData}/agent-hooks/endpoint.env`，Windows 上为 `endpoint.cmd`）并在每次 hook 调用时重新加载，因此长时间运行的代理会话即使在应用重启后也能到达实时的 Orca 服务器 — 不再有从已经死亡的 PTY 发出的死端口 POST。
+
+<Callout>
+  Orca CLI 暴露了一个注释掉的工作树状态字段，代理可以自行更新。参见 [工作树检查点](/docs/cli/worktree-checkpoints)。
+</Callout>

@@ -1,0 +1,65 @@
+---
+title: Jira items 抽屉
+description: 浏览、编辑 Jira Cloud 或自托管的 Server/Data Center issues，并像关联 Linear 或 GitHub items 一样将它们关联到工作树。
+---
+
+import { Callout } from '@/components/docs/prose'
+
+Jira 与 GitHub 和 Linear 并列位于任务抽屉中。在不离开 Orca 的情况下浏览 Jira issues、更新它们，并从任意 issue 创建工作树。
+
+## 连接 Jira 站点
+
+1. 打开 **任务** 侧边栏条目，从来源选择器中选择 **Jira** — Jira 默认就位于 GitHub 和 Linear 旁边，即使还没有保存任何凭据。
+2. 点击 **连接 Jira**。**连接 Jira 站点** 对话框出现。
+3. 选择 **Cloud** 或 **自托管（Server / Data Center）**。
+
+**Cloud**
+
+- **Jira Cloud 站点 URL** — 例如 `https://example.atlassian.net`。
+- **Atlassian 邮箱** — 你的 Atlassian 账户地址。可选（对于带范围的 token）：留空使用 Bearer 认证。
+- **Atlassian API token** — 在 [id.atlassian.com → 安全 → API tokens](https://id.atlassian.com/manage-profile/security/api-tokens) 创建，可以带或不带 scope。
+
+带 scope 的 token 需要 `read:jira-work` 浏览 issues，`write:jira-work` 创建或编辑 issues 与评论，以及 `read:jira-user` 验证账户并选择 assignee。看板列排序还需要 `read:board-scope:jira-software`、`read:board-scope.admin:jira-software` 和 `read:project:jira`；没有这些 scope，状态会按字母排序。
+
+Orca 在不发送 token 的情况下查找站点的 cloud ID，然后将带 scope token 的 API 请求路由到 `https://api.atlassian.com/ex/jira/<cloudId>`。有邮箱时，先尝试站点本身，收到 401 后再通过网关重试。浏览链接继续使用站点 URL。缺少 scope 会报告端点和所需访问权限，但不会移除已保存的凭据。
+
+对于 SSH 连接，远程运行时拥有 token 和 API 请求。较旧的远程运行时仍要求邮箱和不带 scope 的 token；更新远程运行时以启用带 scope 的 token。
+
+**自托管**
+
+- **Jira 基础 URL** — 你的 Server/DC 基础路径（如果 Jira 不在 `/` 则包括路径）。
+- 认证方式：
+  - **个人访问 token** — Bearer PAT（现代 Server/DC 首选）。
+  - **用户名和密码** — 没有 PAT 的旧实例使用 Basic 认证。
+
+<Callout title="使用 HTTPS">
+  对于 Cloud 和自托管 Jira，只要可能都请使用 `https://` URL。Orca 在
+  `Authorization` 头中发送凭据；纯 HTTP 可能会在网络上暴露它们。如果服务器只提供
+  HTTP，请先将其置于可信 HTTPS 隧道或 VPN 之后再连接。
+</Callout>
+
+4. 点击 **连接**。Orca 验证凭据并加载你的站点。
+
+你可以连接多个 Atlassian 站点。连接后，任务标题中有一个站点选择器；选择 **所有站点** 合并跨站点的 issues。
+
+如果你完全不使用 Jira，可以通过 [设置 → 任务](/docs/settings) 将其从来源选择器中隐藏。
+
+## 使用 Jira
+
+- 一旦每个来源都已启用，任务抽屉会在统一列表中显示 GitHub、Linear 和 Jira issues。
+- 打开 issue 在侧边抽屉中查看完整描述、评论和元数据。内联编辑状态（通过可用转换）、优先级、assignee 和自定义字段。
+- 从抽屉的评论编辑器添加评论。
+- **新 Jira issue** 在你意外关闭对话框时（Escape、取消、外部点击或关闭）会保留标题和描述。在同一应用会话中重新打开对话框时文本会恢复；成功创建后草稿清空，且不会跨应用重启保留。Issue 类型和其他选择器仍然使用常规的打开时默认值。
+- 从 Jira issue 创建工作树会预填任务名称，并将工作树关联到该 issue，这样审阅和 issue 保持绑定。
+- 你也可以在 **创建工作空间** 对话框中将 Jira issue URL（`https://…/browse/ABC-123`）粘贴到名称字段，或将字段切换到 **Jira** 搜索并通过文本选择 issue。Orca 填充工作空间名称、关联 issue，并在工作树卡片上显示 key + 摘要和 **在 Jira 中查看**。粘贴支持多站点识别：当多个已连接站点匹配 URL 来源时，Orca 会询问使用哪个；当没有匹配时，它会提示该站点未连接。
+- Orca 会记住你每个仓库最后使用的任务来源，因此 Jira 驱动的仓库在下次打开时默认使用 Jira。
+
+<Callout title="凭据存储位置">
+  你的 Atlassian API token 或自托管凭据通过操作系统密钥环加密后本地存储 — 它们只用于调用你配置的 Jira 站点。如果你停止使用 Orca，请从 Atlassian 账户设置中撤销 token。
+</Callout>
+
+## 后续步骤
+
+- [Linear items 抽屉](/docs/review/linear) — 对 Linear 进行同样的操作流程。
+- [托管审阅、issues & Actions](/docs/review/github) — 当 Jira issue 正在进行时，将工作树交接给托管审阅。
+- [在 Orca 中提交与推送](/docs/review/commit-push) — 在不离开 Orca 的情况下发布分支。

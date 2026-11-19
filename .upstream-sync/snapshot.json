@@ -1,0 +1,8 @@
+{
+  "upstreamRepo": "W:\\github\\orca",
+  "upstreamSitePath": "docs/site",
+  "upstreamCommit": "ded9f25316d12c8d6b059f39473760bb5a844c0f",
+  "lastSyncDate": "2026-11-19T03:05:00Z",
+  "syncType": "initial-migration",
+  "notes": "Initial full migration with Chinese translation. Code files and static assets copied verbatim; content/docs/** translated to Simplified Chinese. Checksums in checksums.json reflect post-translation state. Pnpm-workspace.yaml patchedDependencies removed (monorepo-specific); lockfile regenerated standalone."
+}
